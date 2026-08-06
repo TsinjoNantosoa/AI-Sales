@@ -2,16 +2,18 @@ import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, useDroppable, useDraggable } from "@dnd-kit/core";
 import { Link } from "react-router-dom";
-import { Plus, List, Columns, ChevronDown } from "lucide-react";
+import { Plus, List, Columns } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { StatusBadge, TemperatureBadge } from "@/components/common/StatusBadge";
+import { TemperatureBadge } from "@/components/common/StatusBadge";
 import { ScoreIndicator } from "@/components/common/ScoreIndicator";
 import { UserAvatar } from "@/components/common/Avatar";
 import { LeadFormModal } from "@/components/leads/LeadFormModal";
 import { leadService } from "@/services/leadService";
-import { mockUsers } from "@/mocks/data";
-import type { Lead, LeadStatus } from "@/types";
+import { teamService } from "@/services/teamService";
+import { queryKeys } from "@/lib/queryKeys";
+import { useAuthStore } from "@/stores/authStore";
+import type { Lead, LeadStatus, User } from "@/types";
 import { formatCurrency, timeAgo, cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -53,9 +55,9 @@ function DroppableColumn({ col, children, count, value }: {
   );
 }
 
-function KanbanCard({ lead }: { lead: Lead }) {
+function KanbanCard({ lead, users }: { lead: Lead; users: User[] }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: lead.id });
-  const assignedUser = mockUsers.find((u) => u.id === lead.assignedUserId);
+  const assignedUser = users.find((u) => u.id === lead.assignedUserId);
   const style = transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : undefined;
 
   return (
@@ -125,21 +127,30 @@ function CardOverlay({ lead }: { lead: Lead }) {
 
 export function PipelinePage() {
   const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [mobileColumn, setMobileColumn] = useState<LeadStatus>("NEW");
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
 
   const { data: leads = [], isLoading } = useQuery({
-    queryKey: ["leads"],
-    queryFn: leadService.getLeads,
+    queryKey: [...queryKeys.leads.all, user?.id, user?.role],
+    queryFn: () =>
+      leadService.getLeads({ currentUserId: user?.id, role: user?.role }),
+  });
+
+  const { data: users = [] } = useQuery({
+    queryKey: queryKeys.team.all,
+    queryFn: () => teamService.getUsers(),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: LeadStatus }) =>
-      leadService.updateLead(id, { status }),
+      leadService.moveLead(id, status),
     onSuccess: (lead) => {
-      qc.invalidateQueries({ queryKey: ["leads"] });
+      qc.invalidateQueries({ queryKey: queryKeys.leads.all });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.overview });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.pipeline });
       toast.success(`Lead moved to ${lead.status.replace(/_/g, " ")}.`);
     },
   });
@@ -257,7 +268,7 @@ export function PipelinePage() {
                   const colLeads = getColLeads(col.id);
                   return (
                     <DroppableColumn key={col.id} col={col} count={colLeads.length} value={getColValue(col.id)}>
-                      {colLeads.map((lead) => <KanbanCard key={lead.id} lead={lead} />)}
+                      {colLeads.map((lead) => <KanbanCard key={lead.id} lead={lead} users={users} />)}
                     </DroppableColumn>
                   );
                 })}

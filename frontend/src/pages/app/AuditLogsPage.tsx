@@ -1,8 +1,12 @@
 import { useState } from "react";
-import { Shield, Search, Filter } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Shield, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { mockAuditLogs, mockUsers } from "@/mocks/data";
+import { auditService } from "@/services/auditService";
+import { teamService } from "@/services/teamService";
+import { queryKeys } from "@/lib/queryKeys";
+import { PageLoader } from "@/components/common/LoadingSpinner";
 import { cn, formatDateTime } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { Navigate } from "react-router-dom";
@@ -14,11 +18,22 @@ export function AuditLogsPage() {
   const [filterUser, setFilterUser] = useState("all");
   const [filterResult, setFilterResult] = useState("all");
 
+  const { data: logs = [], isLoading } = useQuery({
+    queryKey: queryKeys.audit.all,
+    queryFn: () => auditService.getLogs(),
+  });
+
+  const { data: users = [] } = useQuery({
+    queryKey: queryKeys.team.all,
+    queryFn: () => teamService.getUsers(),
+  });
+
   if (user?.role !== "ADMIN") return <Navigate to="/app/dashboard" replace />;
+  if (isLoading) return <PageLoader />;
 
-  const actions = [...new Set(mockAuditLogs.map((l) => l.action))];
+  const actions = [...new Set(logs.map((l) => l.action))];
 
-  const filtered = mockAuditLogs.filter((log) => {
+  const filtered = logs.filter((log) => {
     const matchSearch = !search || `${log.userName} ${log.action} ${log.entity} ${log.details}`.toLowerCase().includes(search.toLowerCase());
     const matchAction = filterAction === "all" || log.action === filterAction;
     const matchUser = filterUser === "all" || log.userId === filterUser;
@@ -62,7 +77,7 @@ export function AuditLogsPage() {
           <SelectTrigger className="h-9 w-[140px]"><SelectValue placeholder="User" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Users</SelectItem>
-            {mockUsers.map((u) => <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>)}
+            {users.map((u) => <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterResult} onValueChange={setFilterResult}>
@@ -112,7 +127,7 @@ export function AuditLogsPage() {
           </table>
         </div>
         <div className="px-4 py-3 border-t border-border">
-          <p className="text-xs text-muted-foreground">Showing {filtered.length} of {mockAuditLogs.length} entries</p>
+          <p className="text-xs text-muted-foreground">Showing {filtered.length} of {logs.length} entries</p>
         </div>
       </div>
     </div>

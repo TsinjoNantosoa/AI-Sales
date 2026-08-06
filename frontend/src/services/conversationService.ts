@@ -1,121 +1,121 @@
-import { mockConversations } from "@/mocks/data";
-import type { Conversation, Message } from "@/types";
-import { USE_MOCKS, apiRequest } from "./api";
+import type { Conversation, Message, Lead } from "@/types";
+import { USE_MOCKS } from "@/lib/constants";
+import { apiClient } from "@/lib/apiClient";
+import {
+  getDatabase,
+  createConversation,
+  addMessage,
+  requestHumanHandoff,
+  applyQualificationAnswer,
+} from "@/mocks/mockRepository";
 
-let conversations = [...mockConversations];
-const delay = (ms = 400) => new Promise((r) => setTimeout(r, ms));
-
-const AI_RESPONSES = [
-  "Thank you for reaching out! Could you tell me more about your current setup?",
-  "That's a great use case for AI automation. What's your estimated budget for this project?",
-  "I understand your needs. When would you like to get started — immediately, or within the next 30 days?",
-  "Are you the final decision-maker for this project, or will others be involved?",
-  "Based on what you've shared, I'd estimate your lead score at around 75. Would you like to book a call with our team?",
-  "I'll connect you with one of our specialists who can discuss the technical details.",
-];
-
-let responseIdx = 0;
+const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
 
 export const conversationService = {
-  async getConversations(): Promise<Conversation[]> {
-    if (USE_MOCKS) { await delay(); return [...conversations]; }
-    return apiRequest("/conversations");
+  async getConversations(opts?: { currentUserId?: string; role?: string }): Promise<Conversation[]> {
+    if (USE_MOCKS) {
+      await delay();
+      let list = [...getDatabase().conversations];
+      if (opts?.role === "SALES_REPRESENTATIVE" && opts.currentUserId) {
+        const myLeadIds = new Set(
+          getDatabase()
+            .leads.filter((l) => l.assignedUserId === opts.currentUserId)
+            .map((l) => l.id)
+        );
+        list = list.filter(
+          (c) => c.assignedUserId === opts.currentUserId || myLeadIds.has(c.leadId)
+        );
+      }
+      return list;
+    }
+    return apiClient.get("/conversations");
   },
 
   async getConversation(id: string): Promise<Conversation> {
     if (USE_MOCKS) {
-      await delay(200);
-      const c = conversations.find((c) => c.id === id);
+      await delay(150);
+      const c = getDatabase().conversations.find((x) => x.id === id);
       if (!c) throw new Error("Not found");
-      return { ...c };
+      return c;
     }
-    return apiRequest(`/conversations/${id}`);
+    return apiClient.get(`/conversations/${id}`);
   },
 
-  async sendMessage(conversationId: string, content: string, sender: "user" | "agent", senderName: string): Promise<Message> {
+  async getOrCreateForLead(leadId: string): Promise<Conversation> {
     if (USE_MOCKS) {
-      await delay(300);
-      const message: Message = {
-        id: `m${Date.now()}`,
-        conversationId,
-        content,
-        sender,
-        senderName,
-        timestamp: new Date().toISOString(),
-        read: false,
-      };
-      const idx = conversations.findIndex((c) => c.id === conversationId);
-      if (idx !== -1) {
-        conversations[idx] = {
-          ...conversations[idx],
-          messages: [...conversations[idx].messages, message],
-          lastMessage: content,
-          lastMessageAt: message.timestamp,
-        };
-      }
-      return message;
+      await delay(150);
+      const db = getDatabase();
+      const existing = db.conversations.find(
+        (c) => c.leadId === leadId && c.channel === "chatbot" && c.status !== "closed"
+      );
+      if (existing) return existing;
+      const lead = db.leads.find((l) => l.id === leadId);
+      if (!lead) throw new Error("Lead not found");
+      return createConversation({
+        leadId,
+        leadName: `${lead.firstName} ${lead.lastName}`,
+        leadCompany: lead.companyName,
+        leadEmail: lead.email,
+        channel: "chatbot",
+        status: "ai_handled",
+        assignedUserId: lead.assignedUserId,
+        humanHandoffRequested: false,
+      });
     }
-    return apiRequest(`/conversations/${conversationId}/messages`, {
-      method: "POST",
-      body: JSON.stringify({ content, sender, senderName }),
-    });
+    return apiClient.post("/conversations", { leadId });
   },
 
-  async getAIResponse(conversationId: string): Promise<Message> {
+  async sendMessage(
+    conversationId: string,
+    content: string,
+    sender: Message["sender"] = "user"
+  ): Promise<Message> {
     if (USE_MOCKS) {
-      await delay(1200);
-      const content = AI_RESPONSES[responseIdx % AI_RESPONSES.length];
-      responseIdx++;
-      const message: Message = {
-        id: `m${Date.now()}`,
-        conversationId,
-        content,
-        sender: "ai",
-        senderName: "Ava",
-        timestamp: new Date().toISOString(),
-        read: false,
-      };
-      const idx = conversations.findIndex((c) => c.id === conversationId);
-      if (idx !== -1) {
-        conversations[idx] = {
-          ...conversations[idx],
-          messages: [...conversations[idx].messages, message],
-          lastMessage: content,
-          lastMessageAt: message.timestamp,
-        };
-      }
-      return message;
+      await delay(200);
+      return addMessage(conversationId, content, sender);
     }
-    return apiRequest(`/conversations/${conversationId}/ai-reply`, { method: "POST" });
+    return apiClient.post(`/conversations/${conversationId}/messages`, { content, sender });
+  },
+
+  async applyQualification(
+    leadId: string,
+    conversationId: string,
+    step: number,
+    answer: string
+  ): Promise<{ lead: Lead; score: number; temperature: Lead["temperature"]; becameHot: boolean }> {
+    if (USE_MOCKS) {
+      await delay(400);
+      await addMessage(conversationId, answer, "user");
+      return applyQualificationAnswer(leadId, step, answer);
+    }
+    return apiClient.post(`/conversations/${conversationId}/qualify`, { leadId, step, answer });
+  },
+
+  async getAIResponse(_conversationId: string, _userMessage: string): Promise<{ message: string }> {
+    if (USE_MOCKS) {
+      await delay(500);
+      return { message: "Thanks for your message. Let me continue your qualification." };
+    }
+    return apiClient.post(`/conversations/${_conversationId}/ai-reply`, { message: _userMessage });
   },
 
   async requestHandoff(conversationId: string): Promise<Conversation> {
     if (USE_MOCKS) {
-      await delay(300);
-      const idx = conversations.findIndex((c) => c.id === conversationId);
-      if (idx !== -1) {
-        conversations[idx] = {
-          ...conversations[idx],
-          status: "human_handoff",
-          humanHandoffRequested: true,
-        };
-        return conversations[idx];
-      }
-      throw new Error("Not found");
+      await delay();
+      return requestHumanHandoff(conversationId);
     }
-    return apiRequest(`/conversations/${conversationId}/handoff`, { method: "POST" });
+    return apiClient.post(`/conversations/${conversationId}/handoff`);
   },
 
   async closeConversation(conversationId: string): Promise<Conversation> {
     if (USE_MOCKS) {
-      await delay(300);
-      const idx = conversations.findIndex((c) => c.id === conversationId);
-      if (idx !== -1) {
-        conversations[idx] = { ...conversations[idx], status: "closed" };
-        return conversations[idx];
-      }
-      throw new Error("Not found");
+      await delay();
+      const db = getDatabase();
+      const conv = db.conversations.find((c) => c.id === conversationId);
+      if (!conv) throw new Error("Not found");
+      conv.status = "closed";
+      return conv;
     }
-    return apiRequest(`/conversations/${conversationId}/close`, { method: "POST" });
+    return apiClient.post(`/conversations/${conversationId}/close`);
   },
 };

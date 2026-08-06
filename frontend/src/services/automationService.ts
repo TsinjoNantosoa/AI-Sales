@@ -1,37 +1,58 @@
-import { mockWorkflows, mockWorkflowExecutions } from "@/mocks/data";
 import type { Workflow, WorkflowExecution } from "@/types";
-import { USE_MOCKS, apiRequest } from "./api";
+import { USE_MOCKS } from "@/lib/constants";
+import { apiClient } from "@/lib/apiClient";
+import { getDatabase } from "@/mocks/mockRepository";
 
-let workflows = [...mockWorkflows];
-const delay = (ms = 400) => new Promise((r) => setTimeout(r, ms));
+const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
 
 export const automationService = {
   async getWorkflows(): Promise<Workflow[]> {
-    if (USE_MOCKS) { await delay(); return [...workflows]; }
-    return apiRequest("/automations");
-  },
-
-  async getExecutions(): Promise<WorkflowExecution[]> {
-    if (USE_MOCKS) { await delay(); return [...mockWorkflowExecutions]; }
-    return apiRequest("/automations/executions");
-  },
-
-  async toggleWorkflow(id: string, enable: boolean): Promise<Workflow> {
     if (USE_MOCKS) {
-      await delay(300);
-      const idx = workflows.findIndex((w) => w.id === id);
-      if (idx !== -1) workflows[idx] = { ...workflows[idx], status: enable ? "active" : "inactive" };
-      return workflows[idx];
+      await delay();
+      return [...getDatabase().workflows];
     }
-    return apiRequest(`/automations/${id}/${enable ? "enable" : "disable"}`, { method: "POST" });
+    return apiClient.get("/automations/workflows");
   },
 
-  async testWorkflow(id: string): Promise<{ success: boolean; message: string }> {
+  async getExecutions(leadId?: string): Promise<WorkflowExecution[]> {
     if (USE_MOCKS) {
-      await delay(1500);
-      void id;
-      return { success: true, message: "Workflow test completed successfully in 1.3s" };
+      await delay();
+      const list = getDatabase().workflowExecutions;
+      return leadId ? list.filter((e) => e.relatedLeadId === leadId) : [...list];
     }
-    return apiRequest(`/automations/${id}/test`, { method: "POST" });
+    return apiClient.get("/automations/executions", { params: { leadId } });
+  },
+
+  async toggleWorkflow(id: string): Promise<Workflow> {
+    if (USE_MOCKS) {
+      await delay();
+      const w = getDatabase().workflows.find((x) => x.id === id);
+      if (!w) throw new Error("Not found");
+      w.status = w.status === "active" ? "inactive" : "active";
+      return w;
+    }
+    return apiClient.post(`/automations/workflows/${id}/toggle`);
+  },
+
+  async testWorkflow(id: string): Promise<WorkflowExecution> {
+    if (USE_MOCKS) {
+      await delay(600);
+      const w = getDatabase().workflows.find((x) => x.id === id);
+      if (!w) throw new Error("Not found");
+      const exec: WorkflowExecution = {
+        id: `exec${Date.now()}`,
+        workflowId: id,
+        workflowName: w.name,
+        status: "Success",
+        startedAt: new Date().toISOString(),
+        duration: "1.8s",
+        retryCount: 0,
+      };
+      getDatabase().workflowExecutions = [exec, ...getDatabase().workflowExecutions];
+      w.totalExecutions += 1;
+      w.lastExecution = exec.startedAt;
+      return exec;
+    }
+    return apiClient.post(`/automations/workflows/${id}/test`);
   },
 };

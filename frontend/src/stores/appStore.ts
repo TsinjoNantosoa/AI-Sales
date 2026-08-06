@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Language } from "@/lib/i18n";
+import { STORAGE_KEYS } from "@/lib/constants";
 
 interface AppState {
   language: Language;
@@ -19,6 +20,6 @@ export const useAppStore = create<AppState>()(
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
     }),
-    { name: "app-storage" }
+    { name: STORAGE_KEYS.preferences }
   )
 );

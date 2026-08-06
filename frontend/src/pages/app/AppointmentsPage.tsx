@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Calendar, List, Settings2, Video, Clock, Trash2, Check, X } from "lucide-react";
+import { Plus, Calendar, List, Settings2, Video, Trash2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -12,33 +12,49 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageLoader } from "@/components/common/LoadingSpinner";
 import { appointmentService } from "@/services/appointmentService";
-import { mockLeads, mockUsers } from "@/mocks/data";
+import { leadService } from "@/services/leadService";
+import { teamService } from "@/services/teamService";
+import { queryKeys } from "@/lib/queryKeys";
+import { useAuthStore } from "@/stores/authStore";
 import type { Appointment } from "@/types";
-import { cn, formatDate, formatDateTime } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, startOfToday } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, startOfToday, addDays, addWeeks } from "date-fns";
 
 export function AppointmentsPage() {
   const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [calendarDate, setCalendarDate] = useState(startOfToday());
   const [newAppt, setNewAppt] = useState({ leadId: "", assignedUserId: "", date: "", time: "", duration: 30, type: "30-minute discovery call", notes: "", googleMeet: true });
 
+  const roleOpts = { currentUserId: user?.id, role: user?.role };
+
   const { data: appointments = [], isLoading } = useQuery({
-    queryKey: ["appointments"],
-    queryFn: appointmentService.getAppointments,
+    queryKey: [...queryKeys.appointments.all, user?.id, user?.role],
+    queryFn: () => appointmentService.getAppointments(roleOpts),
+  });
+
+  const { data: leads = [] } = useQuery({
+    queryKey: [...queryKeys.leads.all, user?.id, user?.role],
+    queryFn: () => leadService.getLeads(roleOpts),
+  });
+
+  const { data: users = [] } = useQuery({
+    queryKey: queryKeys.team.all,
+    queryFn: () => teamService.getUsers(),
   });
 
   const deleteMutation = useMutation({
     mutationFn: appointmentService.deleteAppointment,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["appointments"] }); toast.success("Appointment cancelled."); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.appointments.all }); toast.success("Appointment cancelled."); },
   });
 
   const createMutation = useMutation({
     mutationFn: (data: typeof newAppt) => {
-      const lead = mockLeads.find((l) => l.id === data.leadId);
-      const salesUser = mockUsers.find((u) => u.id === data.assignedUserId);
+      const lead = leads.find((l) => l.id === data.leadId);
+      const salesUser = users.find((u) => u.id === data.assignedUserId);
       return appointmentService.createAppointment({
         ...data,
         leadName: lead ? `${lead.firstName} ${lead.lastName}` : "Unknown",
@@ -51,12 +67,12 @@ export function AppointmentsPage() {
         type: data.type as Appointment["type"],
       });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["appointments"] }); toast.success("Appointment created successfully."); setCreateOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.appointments.all }); toast.success("Appointment created successfully."); setCreateOpen(false); },
   });
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: Appointment["status"] }) => appointmentService.updateAppointment(id, { status }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["appointments"] }); toast.success("Status updated."); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.appointments.all }); toast.success("Status updated."); },
   });
 
   if (isLoading) return <PageLoader />;
@@ -86,19 +102,21 @@ export function AppointmentsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="list">
-        <TabsList className="mb-4">
-          <TabsTrigger value="calendar" className="gap-2"><Calendar className="h-4 w-4" />Calendar</TabsTrigger>
+      <Tabs defaultValue="month">
+        <TabsList className="mb-4 flex-wrap h-auto">
+          <TabsTrigger value="month" className="gap-2"><Calendar className="h-4 w-4" />Month</TabsTrigger>
+          <TabsTrigger value="week" className="gap-2">Week</TabsTrigger>
+          <TabsTrigger value="day" className="gap-2">Day</TabsTrigger>
           <TabsTrigger value="list" className="gap-2"><List className="h-4 w-4" />List</TabsTrigger>
           <TabsTrigger value="availability" className="gap-2"><Settings2 className="h-4 w-4" />Availability</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="calendar">
+        <TabsContent value="month">
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-border">
-              <Button variant="outline" size="sm" onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1))}>‹</Button>
+              <Button variant="outline" size="sm" onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1))} aria-label="Previous month">‹</Button>
               <h3 className="font-semibold">{format(calendarDate, "MMMM yyyy")}</h3>
-              <Button variant="outline" size="sm" onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))}>›</Button>
+              <Button variant="outline" size="sm" onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))} aria-label="Next month">›</Button>
             </div>
             <div className="grid grid-cols-7 border-b border-border">
               {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d) => (
@@ -124,24 +142,71 @@ export function AppointmentsPage() {
               })}
             </div>
           </div>
+        </TabsContent>
 
-          {/* Google Calendar Integration Card */}
-          <div className="mt-4 bg-card border border-border rounded-xl p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
-                <Calendar className="h-5 w-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="font-medium text-sm">Google Calendar</p>
-                <div className="flex items-center gap-1.5">
-                  <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                  <p className="text-xs text-muted-foreground">Connected · Last sync 2 minutes ago</p>
-                </div>
-              </div>
+        <TabsContent value="week">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <Button variant="outline" size="sm" onClick={() => setCalendarDate(addWeeks(calendarDate, -1))} aria-label="Previous week">‹</Button>
+              <h3 className="font-semibold">
+                Week of {format(startOfWeek(calendarDate, { weekStartsOn: 1 }), "MMM d")}
+              </h3>
+              <Button variant="outline" size="sm" onClick={() => setCalendarDate(addWeeks(calendarDate, 1))} aria-label="Next week">›</Button>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => toast.success("Calendar synchronized!")}>Synchronize</Button>
-              <Button variant="outline" size="sm" onClick={() => toast.info("Opening Google Calendar...")}>Open Calendar</Button>
+            <div className="grid grid-cols-7 divide-x divide-border min-h-[320px]">
+              {Array.from({ length: 7 }, (_, i) => {
+                const day = addDays(startOfWeek(calendarDate, { weekStartsOn: 1 }), i);
+                const dayAppts = appointments.filter((a) => a.date === format(day, "yyyy-MM-dd"));
+                return (
+                  <div key={day.toISOString()} className="p-2">
+                    <p className={cn("text-xs font-semibold mb-2", isSameDay(day, startOfToday()) && "text-primary")}>
+                      {format(day, "EEE d")}
+                    </p>
+                    <div className="space-y-1">
+                      {dayAppts.map((a) => (
+                        <div key={a.id} className={cn("text-[11px] p-1.5 rounded border", getApptColor(a.status))}>
+                          <p className="font-medium">{a.time}</p>
+                          <p className="truncate">{a.leadName}</p>
+                        </div>
+                      ))}
+                      {dayAppts.length === 0 && (
+                        <p className="text-[10px] text-muted-foreground">No meetings</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="day">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <Button variant="outline" size="sm" onClick={() => setCalendarDate(addDays(calendarDate, -1))} aria-label="Previous day">‹</Button>
+              <h3 className="font-semibold">{format(calendarDate, "EEEE, MMM d yyyy")}</h3>
+              <Button variant="outline" size="sm" onClick={() => setCalendarDate(addDays(calendarDate, 1))} aria-label="Next day">›</Button>
+            </div>
+            <div className="divide-y divide-border">
+              {Array.from({ length: 10 }, (_, i) => {
+                const hour = 8 + i;
+                const label = `${String(hour).padStart(2, "0")}:00`;
+                const slotAppts = appointments.filter(
+                  (a) => a.date === format(calendarDate, "yyyy-MM-dd") && a.time.startsWith(String(hour).padStart(2, "0"))
+                );
+                return (
+                  <div key={label} className="flex gap-3 p-3 min-h-[56px]">
+                    <span className="text-xs text-muted-foreground w-12 shrink-0">{label}</span>
+                    <div className="flex-1 space-y-1">
+                      {slotAppts.map((a) => (
+                        <div key={a.id} className={cn("text-sm px-3 py-2 rounded-lg border", getApptColor(a.status))}>
+                          <span className="font-medium">{a.time}</span> · {a.leadName} · {a.type}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </TabsContent>
@@ -274,14 +339,14 @@ export function AppointmentsPage() {
               <Label>Lead *</Label>
               <Select onValueChange={(v) => setNewAppt({ ...newAppt, leadId: v })}>
                 <SelectTrigger><SelectValue placeholder="Select lead" /></SelectTrigger>
-                <SelectContent>{mockLeads.slice(0, 10).map((l) => <SelectItem key={l.id} value={l.id}>{l.firstName} {l.lastName} — {l.companyName}</SelectItem>)}</SelectContent>
+                <SelectContent>{leads.slice(0, 10).map((l) => <SelectItem key={l.id} value={l.id}>{l.firstName} {l.lastName} — {l.companyName}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Salesperson *</Label>
               <Select onValueChange={(v) => setNewAppt({ ...newAppt, assignedUserId: v })}>
                 <SelectTrigger><SelectValue placeholder="Select salesperson" /></SelectTrigger>
-                <SelectContent>{mockUsers.filter((u) => u.role !== "ADMIN").map((u) => <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>)}</SelectContent>
+                <SelectContent>{users.filter((u) => u.role !== "ADMIN").map((u) => <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">

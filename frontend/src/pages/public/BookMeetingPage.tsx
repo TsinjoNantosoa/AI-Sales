@@ -1,42 +1,148 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowLeft, Clock, Video, Calendar, CheckCircle2, Bot, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+  ArrowLeft, Clock, Video, Calendar, CheckCircle2, Bot, ExternalLink, ChevronLeft, ChevronRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn, formatDate } from "@/lib/utils";
 import { format, addDays, startOfToday, isSameDay } from "date-fns";
+import { appointmentService } from "@/services/appointmentService";
+import { leadService } from "@/services/leadService";
+import { getGoogleCalendarUrl, getDatabase } from "@/mocks/mockRepository";
+import { DEFAULT_ASSIGNEE_ID } from "@/lib/constants";
+import type { Appointment, Lead } from "@/types";
+import { toast } from "sonner";
 
 const MEETING_TYPES = [
-  { id: "intro", label: "15-minute Introduction", duration: 15, description: "Quick intro call to understand your needs.", icon: "⚡" },
-  { id: "discovery", label: "30-minute Discovery Call", duration: 30, description: "Deep dive into your project requirements.", icon: "🔍" },
-  { id: "technical", label: "60-minute Technical Consultation", duration: 60, description: "Detailed technical discussion and solution design.", icon: "🛠️" },
+  { id: "intro", label: "15-minute Introduction", duration: 15, type: "15-minute introduction" as const },
+  { id: "discovery", label: "30-minute Discovery Call", duration: 30, type: "30-minute discovery call" as const },
+  { id: "technical", label: "60-minute Technical Consultation", duration: 60, type: "60-minute technical consultation" as const },
 ];
 
-const SLOTS = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"];
-const UNAVAILABLE = ["09:30", "10:30", "14:00"];
+const formSchema = z.object({
+  firstName: z.string().min(1, "Required"),
+  lastName: z.string().min(1, "Required"),
+  email: z.string().email("Invalid email"),
+  company: z.string().optional(),
+  notes: z.string().optional(),
+});
+type FormValues = z.infer<typeof formSchema>;
 
 export function BookMeetingPage() {
+  const [params] = useSearchParams();
+  const leadIdParam = params.get("leadId") || sessionStorage.getItem("publicLeadId") || "";
+
   const [step, setStep] = useState(0);
   const [selectedType, setSelectedType] = useState<typeof MEETING_TYPES[0] | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", company: "", notes: "" });
+  const [slots, setSlots] = useState<string[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(startOfToday());
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [lead, setLead] = useState<Lead | null>(null);
+  const [appointment, setAppointment] = useState<Appointment | null>(null);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: { firstName: "", lastName: "", email: "", company: "", notes: "" },
+  });
 
   const today = startOfToday();
-  const daysInView = Array.from({ length: 14 }, (_, i) => addDays(today, i + 1));
+  const daysInView = Array.from({ length: 14 }, (_, i) => addDays(today, i + 1 + weekOffset * 7));
 
-  const handleConfirm = async () => {
+  useEffect(() => {
+    if (!leadIdParam) return;
+    void leadService.getLead(leadIdParam).then((l) => {
+      setLead(l);
+      form.reset({
+        firstName: l.firstName,
+        lastName: l.lastName,
+        email: l.email,
+        company: l.companyName,
+        notes: "",
+      });
+    }).catch(() => undefined);
+  }, [leadIdParam, form]);
+
+  useEffect(() => {
+    if (!selectedDate) return;
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    void appointmentService.getAvailableSlots(dateStr, DEFAULT_ASSIGNEE_ID).then(setSlots);
+  }, [selectedDate]);
+
+  const handleConfirm = form.handleSubmit(async (values) => {
+    if (!selectedDate || !selectedSlot || !selectedType) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setLoading(false);
-    setConfirmed(true);
+    try {
+      let activeLead = lead;
+      if (!activeLead) {
+        activeLead = await leadService.createLead({
+          firstName: values.firstName,
+          lastName: values.lastName,
+          companyName: values.company || "Unknown",
+          email: values.email,
+          country: "Unknown",
+          source: "Website",
+          serviceInterest: "Other",
+          needDescription: values.notes || "Booked via public calendar",
+          consentGiven: true,
+          status: "NEW",
+        });
+        sessionStorage.setItem("publicLeadId", activeLead.id);
+        setLead(activeLead);
+      }
+
+      const assignee = getDatabase().users.find((u) => u.id === (activeLead.assignedUserId || DEFAULT_ASSIGNEE_ID));
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const appt = await appointmentService.createAppointment({
+        leadId: activeLead.id,
+        leadName: `${values.firstName} ${values.lastName}`,
+        leadCompany: values.company || activeLead.companyName,
+        leadEmail: values.email,
+        assignedUserId: activeLead.assignedUserId || DEFAULT_ASSIGNEE_ID,
+        salespersonName: assignee ? `${assignee.firstName} ${assignee.lastName}` : "Sarah Johnson",
+        date: dateStr,
+        time: selectedSlot,
+        duration: selectedType.duration,
+        timezone: "America/New_York",
+        type: selectedType.type,
+        status: "Confirmed",
+        meetingLink: `https://meet.google.com/ais-${activeLead.id.slice(-6)}`,
+        notes: values.notes,
+        googleMeet: true,
+      });
+
+      await leadService.moveLead(activeLead.id, "MEETING_SCHEDULED");
+      setAppointment(appt);
+      setConfirmed(true);
+      toast.success("Meeting confirmed!");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Booking failed");
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  const openGoogleCalendar = () => {
+    if (!appointment || !selectedType) return;
+    const url = getGoogleCalendarUrl({
+      title: `${selectedType.label} — AI Sales Assistant`,
+      date: appointment.date,
+      time: appointment.time,
+      duration: appointment.duration,
+      details: appointment.notes || "Discovery meeting with AI Sales Assistant",
+      location: appointment.meetingLink,
+    });
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  if (confirmed && selectedDate && selectedSlot && selectedType) {
+  if (confirmed && selectedDate && selectedSlot && selectedType && appointment) {
     return (
       <div className="min-h-screen bg-muted/30 flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center">
@@ -44,7 +150,7 @@ export function BookMeetingPage() {
             <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
           </div>
           <h1 className="text-2xl font-bold text-foreground mb-2">Meeting Confirmed!</h1>
-          <p className="text-muted-foreground mb-8">You'll receive a confirmation email with the meeting details.</p>
+          <p className="text-muted-foreground mb-8">Your appointment is linked to your lead profile in our CRM.</p>
 
           <div className="bg-card rounded-xl border border-border p-6 text-left space-y-4 mb-6">
             <div className="flex items-center gap-3">
@@ -60,21 +166,33 @@ export function BookMeetingPage() {
             </div>
             <div className="flex items-center gap-3">
               <Bot className="h-5 w-5 text-primary" />
-              <p className="text-sm">With Sarah Johnson, Sales Manager</p>
+              <p className="text-sm">With {appointment.salespersonName}</p>
             </div>
-            <div className="flex items-center gap-3">
-              <Video className="h-5 w-5 text-primary" />
-              <a href="#" className="text-sm text-primary hover:underline flex items-center gap-1">
-                https://meet.google.com/demo-link <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
+            {appointment.meetingLink && (
+              <div className="flex items-center gap-3">
+                <Video className="h-5 w-5 text-primary" />
+                <a href={appointment.meetingLink} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                  {appointment.meetingLink} <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            )}
           </div>
 
           <div className="space-y-3">
-            <Button className="w-full" variant="outline" onClick={() => {}}>
+            <Button className="w-full" variant="outline" onClick={openGoogleCalendar}>
               <Calendar className="h-4 w-4 mr-2" /> Add to Google Calendar
             </Button>
-            <Button className="w-full" variant="outline" onClick={() => { setConfirmed(false); setStep(0); setSelectedType(null); setSelectedDate(null); setSelectedSlot(null); }}>
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => {
+                setConfirmed(false);
+                setStep(0);
+                setSelectedType(null);
+                setSelectedDate(null);
+                setSelectedSlot(null);
+              }}
+            >
               Reschedule
             </Button>
             <Link to="/"><Button variant="ghost" className="w-full">Back to Home</Button></Link>
@@ -92,11 +210,12 @@ export function BookMeetingPage() {
             <ArrowLeft className="h-4 w-4" /> Back
           </Link>
           <h1 className="text-2xl font-bold text-foreground">Book a Meeting</h1>
-          <p className="text-muted-foreground text-sm mt-1">Choose a meeting type and a time that works for you.</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            {lead ? `Booking for ${lead.firstName} ${lead.lastName}` : "Choose a meeting type and a time that works for you."}
+          </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-          {/* Left Panel */}
           <div className="md:col-span-1 bg-card rounded-xl border border-border p-5 space-y-4 h-fit">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
@@ -133,7 +252,6 @@ export function BookMeetingPage() {
             )}
           </div>
 
-          {/* Right Panel */}
           <div className="md:col-span-2 bg-card rounded-xl border border-border p-5">
             {step === 0 && (
               <div>
@@ -142,14 +260,14 @@ export function BookMeetingPage() {
                   {MEETING_TYPES.map((type) => (
                     <button
                       key={type.id}
+                      type="button"
                       onClick={() => { setSelectedType(type); setStep(1); }}
                       className="w-full text-left p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-all"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">{type.icon}</span>
                         <div className="flex-1">
                           <p className="font-medium text-sm">{type.label}</p>
-                          <p className="text-xs text-muted-foreground">{type.description}</p>
+                          <p className="text-xs text-muted-foreground">{type.duration} minute meeting</p>
                         </div>
                         <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">{type.duration}m</span>
                       </div>
@@ -162,15 +280,15 @@ export function BookMeetingPage() {
             {step === 1 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <button onClick={() => setStep(0)} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
+                  <button type="button" onClick={() => setStep(0)} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
                     <ChevronLeft className="h-4 w-4" /> Back
                   </button>
                   <h2 className="font-semibold">Select a date</h2>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCalendarMonth(addDays(calendarMonth, -7))}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setWeekOffset((w) => Math.max(0, w - 1))} aria-label="Previous week">
                       <ChevronLeft className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCalendarMonth(addDays(calendarMonth, 7))}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setWeekOffset((w) => w + 1)} aria-label="Next week">
                       <ChevronRight className="h-3 w-3" />
                     </Button>
                   </div>
@@ -185,6 +303,7 @@ export function BookMeetingPage() {
                     return (
                       <button
                         key={day.toISOString()}
+                        type="button"
                         disabled={isWeekend}
                         onClick={() => { setSelectedDate(day); setStep(2); }}
                         className={cn(
@@ -199,74 +318,71 @@ export function BookMeetingPage() {
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground text-center">All times shown in America/New_York (EST)</p>
               </div>
             )}
 
             {step === 2 && selectedDate && (
               <div>
-                <button onClick={() => setStep(1)} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4">
+                <button type="button" onClick={() => setStep(1)} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4">
                   <ChevronLeft className="h-4 w-4" /> Back
                 </button>
                 <h2 className="font-semibold mb-4">Available slots — {formatDate(selectedDate)}</h2>
                 <div className="grid grid-cols-3 gap-2 mb-4">
-                  {SLOTS.map((slot) => {
-                    const unavailable = UNAVAILABLE.includes(slot);
-                    const isSelected = selectedSlot === slot;
-                    return (
-                      <button
-                        key={slot}
-                        disabled={unavailable}
-                        onClick={() => { setSelectedSlot(slot); setStep(3); }}
-                        className={cn(
-                          "py-2.5 rounded-lg text-sm font-medium border transition-all",
-                          isSelected ? "bg-primary text-white border-primary" :
-                          unavailable ? "opacity-30 cursor-not-allowed bg-muted text-muted-foreground border-border" :
-                          "border-border hover:border-primary hover:bg-primary/5 text-foreground"
-                        )}
-                      >
-                        {slot}
-                      </button>
-                    );
-                  })}
+                  {slots.map((slot) => (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={() => { setSelectedSlot(slot); setStep(3); }}
+                      className={cn(
+                        "py-2.5 rounded-lg text-sm font-medium border transition-all",
+                        selectedSlot === slot ? "bg-primary text-white border-primary" :
+                        "border-border hover:border-primary hover:bg-primary/5 text-foreground"
+                      )}
+                    >
+                      {slot}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
 
             {step === 3 && (
-              <div>
-                <button onClick={() => setStep(2)} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4">
+              <form onSubmit={handleConfirm}>
+                <button type="button" onClick={() => setStep(2)} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4">
                   <ChevronLeft className="h-4 w-4" /> Back
                 </button>
                 <h2 className="font-semibold mb-4">Your information</h2>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label>First Name *</Label>
-                      <Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} placeholder="John" />
+                      <Label htmlFor="firstName">First Name *</Label>
+                      <Input id="firstName" {...form.register("firstName")} />
+                      {form.formState.errors.firstName && (
+                        <p className="text-xs text-destructive">{form.formState.errors.firstName.message}</p>
+                      )}
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Last Name *</Label>
-                      <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} placeholder="Smith" />
+                      <Label htmlFor="lastName">Last Name *</Label>
+                      <Input id="lastName" {...form.register("lastName")} />
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Email *</Label>
-                    <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="john@company.com" />
+                    <Label htmlFor="email">Email *</Label>
+                    <Input id="email" type="email" {...form.register("email")} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Company</Label>
-                    <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="ABC Consulting" />
+                    <Label htmlFor="company">Company</Label>
+                    <Input id="company" {...form.register("company")} />
                   </div>
-                  <Button
-                    className="w-full"
-                    disabled={!form.firstName || !form.lastName || !form.email || loading}
-                    onClick={handleConfirm}
-                  >
+                  <div className="space-y-1.5">
+                    <Label htmlFor="notes">Notes</Label>
+                    <Input id="notes" {...form.register("notes")} placeholder="Anything we should know?" />
+                  </div>
+                  <Button className="w-full" type="submit" disabled={loading}>
                     {loading ? "Confirming..." : "Confirm Booking"}
                   </Button>
                 </div>
-              </div>
+              </form>
             )}
           </div>
         </div>

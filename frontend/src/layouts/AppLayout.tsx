@@ -34,11 +34,14 @@ function getPageLabel(pathname: string): string {
 }
 
 export function AppLayout() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { unreadCount } = useNotifications();
 
+  if (!hasHydrated) {
+    return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+  }
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   const pageLabel = getPageLabel(location.pathname);

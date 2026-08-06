@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -18,7 +18,9 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LeadFormModal } from "@/components/leads/LeadFormModal";
 import { leadService } from "@/services/leadService";
-import { mockUsers } from "@/mocks/data";
+import { teamService } from "@/services/teamService";
+import { queryKeys } from "@/lib/queryKeys";
+import { useAuthStore } from "@/stores/authStore";
 import type { Lead, LeadStatus, LeadTemperature } from "@/types";
 import { formatCurrency, timeAgo, cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -28,6 +30,8 @@ type SortDir = "asc" | "desc";
 
 export function LeadsPage() {
   const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const importRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<LeadStatus | "all">("all");
   const [filterTemp, setFilterTemp] = useState<LeadTemperature | "all">("all");
@@ -37,24 +41,77 @@ export function LeadsPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkAssignUserId, setBulkAssignUserId] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [page, setPage] = useState(1);
   const PER_PAGE = 10;
 
+  const roleOpts = { currentUserId: user?.id, role: user?.role };
+
   const { data: leads = [], isLoading } = useQuery({
-    queryKey: ["leads"],
-    queryFn: leadService.getLeads,
+    queryKey: [...queryKeys.leads.all, user?.id, user?.role],
+    queryFn: () => leadService.getLeads(roleOpts),
   });
+
+  const { data: users = [] } = useQuery({
+    queryKey: queryKeys.team.all,
+    queryFn: () => teamService.getUsers(),
+  });
+
+  const invalidateLeads = () => {
+    qc.invalidateQueries({ queryKey: queryKeys.leads.all });
+    qc.invalidateQueries({ queryKey: queryKeys.dashboard.overview });
+  };
 
   const deleteMutation = useMutation({
     mutationFn: leadService.deleteLead,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["leads"] }); toast.success("Lead deleted successfully."); },
+    onSuccess: () => { invalidateLeads(); toast.success("Lead deleted successfully."); },
     onError: () => toast.error("Failed to delete lead."),
   });
 
+  const archiveMutation = useMutation({
+    mutationFn: leadService.archiveLead,
+    onSuccess: () => { invalidateLeads(); toast.success("Lead archived."); },
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: ({ id, userId }: { id: string; userId: string }) => leadService.assignLead(id, userId),
+    onSuccess: () => { invalidateLeads(); toast.success("Lead assigned."); },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => leadService.bulkDelete(ids),
+    onSuccess: () => {
+      invalidateLeads();
+      setSelectedIds([]);
+      toast.success("Selected leads deleted.");
+    },
+  });
+
+  const bulkAssignMutation = useMutation({
+    mutationFn: ({ ids, userId }: { ids: string[]; userId: string }) =>
+      leadService.bulkUpdate(ids, { assignedUserId: userId }),
+    onSuccess: () => {
+      invalidateLeads();
+      setSelectedIds([]);
+      setBulkAssignUserId("");
+      toast.success("Leads assigned.");
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: leadService.importLeads,
+    onSuccess: (result) => {
+      invalidateLeads();
+      toast.success(`Imported ${result.imported.length} leads${result.rejected.length ? `, ${result.rejected.length} rejected` : ""}.`);
+    },
+    onError: () => toast.error("Import failed."),
+  });
+
   const filteredLeads = useMemo(() => {
-    let result = leads.filter((l) => {
+    const result = leads.filter((l) => {
       const q = `${l.firstName} ${l.lastName} ${l.companyName} ${l.email}`.toLowerCase();
       return (
         (!search || q.includes(search.toLowerCase())) &&
@@ -78,14 +135,56 @@ export function LeadsPage() {
   const resetFilters = () => { setSearch(""); setFilterStatus("all"); setFilterTemp("all"); setFilterSource("all"); setFilterUser("all"); setPage(1); };
   const toggleSelect = (id: string) => setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   const toggleAll = () => setSelectedIds(selectedIds.length === pagedLeads.length ? [] : pagedLeads.map((l) => l.id));
-  const getUserName = (id?: string) => { const u = mockUsers.find((u) => u.id === id); return u ? `${u.firstName} ${u.lastName}` : "—"; };
+  const getUserName = (id?: string) => { const u = users.find((u) => u.id === id); return u ? `${u.firstName} ${u.lastName}` : "—"; };
   const statuses: LeadStatus[] = ["NEW","CONTACTED","QUALIFYING","QUALIFIED","MEETING_SCHEDULED","PROPOSAL_SENT","NEGOTIATION","WON","LOST","INACTIVE"];
   const temps: LeadTemperature[] = ["HOT","WARM","COLD"];
-  const sources = [...new Set(leads.map((l) => l.source))];
+  const salesUsers = users.filter((u) => u.role !== "ADMIN");
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir(sortDir === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("desc"); }
+  };
+
+  const handleExport = () => {
+    const header = "firstName,lastName,companyName,email,phone,status,score,source,estimatedValue";
+    const rows = filteredLeads.map((l) =>
+      [l.firstName, l.lastName, l.companyName, l.email, l.phone ?? "", l.status, l.score, l.source, l.estimatedValue ?? ""].join(",")
+    );
+    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `leads-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredLeads.length} leads.`);
+  };
+
+  const handleImportFile = async (file: File) => {
+    const text = await file.text();
+    const lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) {
+      toast.error("CSV must include a header and at least one row.");
+      return;
+    }
+    const headers = lines[0].split(",").map((h) => h.trim());
+    const rows = lines.slice(1).map((line) => {
+      const cols = line.split(",");
+      const obj: Record<string, string> = {};
+      headers.forEach((h, i) => { obj[h] = (cols[i] ?? "").trim(); });
+      return {
+        firstName: obj.firstName || obj.firstname || "",
+        lastName: obj.lastName || obj.lastname || "",
+        companyName: obj.companyName || obj.company || "",
+        email: obj.email || "",
+        phone: obj.phone,
+        country: obj.country || "Unknown",
+        serviceInterest: obj.serviceInterest || "Other",
+        needDescription: obj.needDescription || "Imported via CSV",
+        source: (obj.source as Lead["source"]) || "Manual",
+      };
+    });
+    importMutation.mutate(rows);
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -102,10 +201,21 @@ export function LeadsPage() {
           <p className="page-subtitle">{filteredLeads.length} leads{hasFilters ? " (filtered)" : ""}</p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <Button variant="outline" size="sm" className="hidden sm:flex gap-1.5 h-9">
+          <input
+            ref={importRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleImportFile(file);
+              e.target.value = "";
+            }}
+          />
+          <Button variant="outline" size="sm" className="hidden sm:flex gap-1.5 h-9" onClick={() => importRef.current?.click()}>
             <Upload className="h-4 w-4" /> Import
           </Button>
-          <Button variant="outline" size="sm" className="hidden sm:flex gap-1.5 h-9">
+          <Button variant="outline" size="sm" className="hidden sm:flex gap-1.5 h-9" onClick={handleExport}>
             <Download className="h-4 w-4" /> Export
           </Button>
           <Button size="sm" className="gap-1.5 h-9" onClick={() => { setEditLead(null); setFormOpen(true); }}>
@@ -148,7 +258,7 @@ export function LeadsPage() {
           <SelectTrigger className="h-9 w-[130px] text-sm hidden sm:flex"><SelectValue placeholder="Assignee" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Sales</SelectItem>
-            {mockUsers.map((u) => <SelectItem key={u.id} value={u.id}>{u.firstName}</SelectItem>)}
+            {salesUsers.map((u) => <SelectItem key={u.id} value={u.id}>{u.firstName}</SelectItem>)}
           </SelectContent>
         </Select>
         {hasFilters && (
@@ -162,8 +272,29 @@ export function LeadsPage() {
       {selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 bg-primary/5 rounded-lg border border-primary/20 animate-fade-in-up">
           <span className="text-sm font-semibold text-primary">{selectedIds.length} selected</span>
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5"><UserPlus className="h-3 w-3" /> Assign</Button>
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10">
+          <Select value={bulkAssignUserId} onValueChange={setBulkAssignUserId}>
+            <SelectTrigger className="h-7 w-[140px] text-xs"><SelectValue placeholder="Assign to…" /></SelectTrigger>
+            <SelectContent>
+              {salesUsers.map((u) => (
+                <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1.5"
+            disabled={!bulkAssignUserId || bulkAssignMutation.isPending}
+            onClick={() => bulkAssignMutation.mutate({ ids: selectedIds, userId: bulkAssignUserId })}
+          >
+            <UserPlus className="h-3 w-3" /> Assign
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+            onClick={() => setBulkDeleteOpen(true)}
+          >
             <Trash2 className="h-3 w-3" /> Delete
           </Button>
           <Button variant="ghost" size="sm" className="h-7 text-xs ml-auto" onClick={() => setSelectedIds([])}>Clear</Button>
@@ -309,12 +440,20 @@ export function LeadsPage() {
                         <DropdownMenuItem onClick={() => { setEditLead(lead); setFormOpen(true); }}>
                           <Edit className="h-4 w-4 mr-2" />Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem><UserPlus className="h-4 w-4 mr-2" />Assign</DropdownMenuItem>
-                        <DropdownMenuItem><StickyNote className="h-4 w-4 mr-2" />Add Note</DropdownMenuItem>
+                        {salesUsers[0] && (
+                          <DropdownMenuItem onClick={() => assignMutation.mutate({ id: lead.id, userId: salesUsers[0].id })}>
+                            <UserPlus className="h-4 w-4 mr-2" />Assign
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem asChild>
+                          <Link to={`/app/leads/${lead.id}`}><StickyNote className="h-4 w-4 mr-2" />Add Note</Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem asChild>
                           <Link to="/app/appointments"><Calendar className="h-4 w-4 mr-2" />Book Meeting</Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem><Archive className="h-4 w-4 mr-2" />Archive</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => archiveMutation.mutate(lead.id)}>
+                          <Archive className="h-4 w-4 mr-2" />Archive
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive focus:bg-destructive/10"
@@ -371,6 +510,14 @@ export function LeadsPage() {
         description="This will permanently delete the lead and all associated data. This action cannot be undone."
         confirmLabel="Delete Lead"
         onConfirm={() => { if (deleteId) { deleteMutation.mutate(deleteId); setDeleteId(null); } }}
+      />
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title="Delete Selected Leads"
+        description={`This will permanently delete ${selectedIds.length} leads. This action cannot be undone.`}
+        confirmLabel="Delete Leads"
+        onConfirm={() => { bulkDeleteMutation.mutate(selectedIds); setBulkDeleteOpen(false); }}
       />
     </div>
   );

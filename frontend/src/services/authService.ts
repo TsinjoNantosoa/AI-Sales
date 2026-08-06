@@ -1,20 +1,29 @@
-import { mockUsers } from "@/mocks/data";
 import type { AuthUser } from "@/types";
-import { USE_MOCKS, apiRequest } from "./api";
+import { USE_MOCKS, DEMO_PASSWORDS } from "@/lib/constants";
+import { apiClient } from "@/lib/apiClient";
+import { getDatabase } from "@/mocks/mockRepository";
 
-const DEMO_CREDENTIALS: Record<string, { password: string; userId: string }> = {
-  "admin@aisales.demo": { password: "Demo123!", userId: "u1" },
-  "manager@aisales.demo": { password: "Demo123!", userId: "u2" },
-  "sales@aisales.demo": { password: "Demo123!", userId: "u3" },
+const DEMO_USER_IDS: Record<string, string> = {
+  "admin@aisales.demo": "u1",
+  "manager@aisales.demo": "u2",
+  "sales@aisales.demo": "u3",
 };
+
+/** Session-only demo password overrides (never persisted). */
+const sessionPasswordOverrides: Record<string, string> = {};
 
 export const authService = {
   async login(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
     if (USE_MOCKS) {
-      await new Promise((r) => setTimeout(r, 600));
-      const cred = DEMO_CREDENTIALS[email];
-      if (!cred || cred.password !== password) throw new Error("Invalid credentials");
-      const user = mockUsers.find((u) => u.id === cred.userId)!;
+      await new Promise((r) => setTimeout(r, 400));
+      const expected =
+        sessionPasswordOverrides[email] ?? DEMO_PASSWORDS[email];
+      const userId = DEMO_USER_IDS[email];
+      if (!expected || !userId || expected !== password) {
+        throw new Error("Invalid credentials");
+      }
+      const user = getDatabase().users.find((u) => u.id === userId);
+      if (!user || user.status !== "active") throw new Error("Invalid credentials");
       return {
         user: {
           id: user.id,
@@ -24,42 +33,47 @@ export const authService = {
           role: user.role,
           timezone: user.timezone,
           language: user.language,
+          avatar: user.avatar,
         },
-        token: "mock-jwt-token",
+        token: `mock-jwt-${user.id}`,
       };
     }
-    return apiRequest("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
+    return apiClient.post("/auth/login", { email, password });
   },
 
-  async forgotPassword(email: string): Promise<void> {
+  async forgotPassword(email: string): Promise<{ resetToken?: string }> {
     if (USE_MOCKS) {
-      await new Promise((r) => setTimeout(r, 500));
-      return;
+      await new Promise((r) => setTimeout(r, 400));
+      if (!DEMO_PASSWORDS[email] && !DEMO_USER_IDS[email]) {
+        return {};
+      }
+      return { resetToken: `mock-reset-${btoa(email)}` };
     }
-    return apiRequest("/auth/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
+    return apiClient.post("/auth/forgot-password", { email });
   },
 
   async resetPassword(token: string, password: string): Promise<void> {
     if (USE_MOCKS) {
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 400));
+      if (!token.startsWith("mock-reset-")) {
+        throw new Error("Invalid or expired reset token");
+      }
+      try {
+        const email = atob(token.replace("mock-reset-", ""));
+        if (!DEMO_USER_IDS[email]) throw new Error("Invalid token");
+        sessionPasswordOverrides[email] = password;
+      } catch {
+        throw new Error("Invalid or expired reset token");
+      }
       return;
     }
-    return apiRequest("/auth/reset-password", {
-      method: "POST",
-      body: JSON.stringify({ token, password }),
-    });
+    await apiClient.post("/auth/reset-password", { token, password });
   },
 
   async getMe(): Promise<AuthUser> {
     if (USE_MOCKS) {
       await new Promise((r) => setTimeout(r, 200));
-      const user = mockUsers[0];
+      const user = getDatabase().users[0];
       return {
         id: user.id,
         email: user.email,
@@ -70,6 +84,6 @@ export const authService = {
         language: user.language,
       };
     }
-    return apiRequest("/auth/me");
+    return apiClient.get("/auth/me");
   },
 };

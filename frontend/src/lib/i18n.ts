@@ -502,14 +502,15 @@ export const translations = {
 
 export type TranslationKey = keyof typeof translations.en;
 
-export function t(lang: Language, section: keyof typeof translations.en, key: string): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const langTranslations = translations[lang] as any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const enTranslations = translations.en as any;
-  const val = langTranslations[section]?.[key];
-  if (typeof val === "string") return val;
-  const fallback = enTranslations[section]?.[key];
-  if (typeof fallback === "string") return fallback;
-  return key;
+type SectionKey = keyof typeof translations.en;
+type SectionValues<S extends SectionKey> = typeof translations.en[S];
+
+export function t<S extends SectionKey>(
+  lang: Language,
+  section: S,
+  key: keyof SectionValues<S> & string
+): string {
+  const langSection = translations[lang][section] as Record<string, string>;
+  const enSection = translations.en[section] as Record<string, string>;
+  return langSection[key] ?? enSection[key] ?? key;
 }

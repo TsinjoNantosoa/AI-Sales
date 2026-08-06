@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bot, X, Minimize2, Send, User, Loader2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,12 +15,10 @@ interface ChatMessage {
 
 const QUALIFICATION_FLOW = [
   {
-    trigger: null,
-    message: "Hello! I'm Ava, your AI Sales Assistant. 👋\nHow can I help you today?",
+    message: "Hello! I'm Ava, your AI Sales Assistant.\nHow can I help you today?",
     quickReplies: ["I need AI automation", "I need a CRM integration", "I want to book a meeting", "I have a question"],
   },
   {
-    triggers: ["AI automation", "CRM", "book", "question"],
     message: "Great choice! What specific business process would you like to automate or improve?",
     quickReplies: ["Lead qualification", "Follow-up emails", "Calendar booking", "Data entry"],
   },
@@ -40,23 +39,10 @@ const QUALIFICATION_FLOW = [
     quickReplies: ["Yes, I decide", "No, I need approval", "It's a team decision"],
   },
   {
-    message: "Based on our conversation, I've calculated your lead profile:\n\n✅ Lead Score: **86/100** — Hot Lead 🔥\n\nWould you like to book a discovery call with one of our specialists?",
+    message: "Based on our conversation, I recommend booking a discovery call with our team.",
     quickReplies: ["Yes, book a meeting!", "Send me more info", "Not right now"],
   },
-  {
-    triggers: ["book", "meeting"],
-    message: "Excellent! Click below to choose a time that works for you. Our team will confirm within minutes.",
-    quickReplies: ["📅 Book a 30-min call", "📅 Book a 60-min consultation"],
-  },
 ];
-
-let flowStep = 0;
-
-function getAIResponse(userMessage: string): { message: string; quickReplies?: string[] } {
-  flowStep = Math.min(flowStep + 1, QUALIFICATION_FLOW.length - 1);
-  const step = QUALIFICATION_FLOW[flowStep];
-  return { message: step.message, quickReplies: step.quickReplies };
-}
 
 function TypingIndicator() {
   return (
@@ -74,8 +60,10 @@ function TypingIndicator() {
 }
 
 export function ChatbotWidget() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [flowStep, setFlowStep] = useState(0);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "1",
@@ -91,13 +79,21 @@ export function ChatbotWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  const goToChatOrBook = (text: string) => {
+    const leadId = sessionStorage.getItem("publicLeadId");
+    if (text.toLowerCase().includes("book") || text.toLowerCase().includes("meeting")) {
+      navigate(leadId ? `/book?leadId=${leadId}` : "/book");
+      return true;
+    }
+    return false;
+  };
 
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
+    if (goToChatOrBook(text)) return;
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -109,29 +105,48 @@ export function ChatbotWidget() {
     setInput("");
     setIsTyping(true);
 
-    const progress = Math.min(qualificationProgress + 15, 95);
-    setQualificationProgress(progress);
+    const nextStep = Math.min(flowStep + 1, QUALIFICATION_FLOW.length - 1);
+    setFlowStep(nextStep);
+    setQualificationProgress(Math.min(10 + nextStep * 15, 95));
 
-    await new Promise((r) => setTimeout(r, 800 + Math.random() * 600));
+    await new Promise((r) => setTimeout(r, 700));
     setIsTyping(false);
 
-    const response = getAIResponse(text);
-    const aiMsg: ChatMessage = {
-      id: (Date.now() + 1).toString(),
-      content: response.message,
-      sender: "ai",
-      timestamp: new Date(),
-      quickReplies: response.quickReplies,
-    };
-    setMessages((prev) => [...prev, aiMsg]);
+    const step = QUALIFICATION_FLOW[nextStep];
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: (Date.now() + 1).toString(),
+        content: step.message,
+        sender: "ai",
+        timestamp: new Date(),
+        quickReplies: step.quickReplies,
+      },
+    ]);
   };
 
   return (
     <>
-      {/* Floating Button */}
       {!isOpen && (
         <button
-          onClick={() => { setIsOpen(true); setIsMinimized(false); flowStep = 0; }}
+          type="button"
+          data-chatbot
+          aria-label="Open AI chat"
+          onClick={() => {
+            setIsOpen(true);
+            setIsMinimized(false);
+            setFlowStep(0);
+            setMessages([
+              {
+                id: "1",
+                content: QUALIFICATION_FLOW[0].message,
+                sender: "ai",
+                timestamp: new Date(),
+                quickReplies: QUALIFICATION_FLOW[0].quickReplies,
+              },
+            ]);
+            setQualificationProgress(10);
+          }}
           className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary text-white shadow-2xl flex items-center justify-center hover:bg-primary/90 transition-all hover:scale-105 group"
         >
           <Bot className="h-6 w-6 group-hover:scale-110 transition-transform" />
@@ -139,15 +154,13 @@ export function ChatbotWidget() {
         </button>
       )}
 
-      {/* Chat Window */}
       {isOpen && (
         <div
           className={cn(
-            "fixed bottom-6 right-6 z-50 w-[360px] bg-card rounded-2xl shadow-2xl border border-border flex flex-col transition-all duration-200",
+            "fixed bottom-6 right-6 z-50 w-[360px] max-w-[calc(100vw-2rem)] bg-card rounded-2xl shadow-2xl border border-border flex flex-col transition-all duration-200",
             isMinimized ? "h-[64px]" : "h-[520px]"
           )}
         >
-          {/* Header */}
           <div className="flex items-center gap-3 p-4 border-b border-border rounded-t-2xl bg-primary text-primary-foreground">
             <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center">
               <Bot className="h-4 w-4" />
@@ -165,6 +178,7 @@ export function ChatbotWidget() {
                 size="icon"
                 className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/10"
                 onClick={() => setIsMinimized(!isMinimized)}
+                aria-label="Minimize chat"
               >
                 <Minimize2 className="h-3.5 w-3.5" />
               </Button>
@@ -173,6 +187,7 @@ export function ChatbotWidget() {
                 size="icon"
                 className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/10"
                 onClick={() => setIsOpen(false)}
+                aria-label="Close chat"
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
@@ -181,7 +196,6 @@ export function ChatbotWidget() {
 
           {!isMinimized && (
             <>
-              {/* Qualification Progress */}
               <div className="px-4 py-2 bg-muted/50 border-b border-border">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -198,17 +212,15 @@ export function ChatbotWidget() {
                 </div>
               </div>
 
-              {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages.map((msg) => (
                   <div key={msg.id}>
                     <div className={cn("flex items-end gap-2", msg.sender === "user" ? "flex-row-reverse" : "flex-row")}>
-                      {msg.sender === "ai" && (
+                      {msg.sender === "ai" ? (
                         <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center shrink-0">
                           <Bot className="h-3 w-3 text-white" />
                         </div>
-                      )}
-                      {msg.sender === "user" && (
+                      ) : (
                         <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center shrink-0">
                           <User className="h-3 w-3 text-muted-foreground" />
                         </div>
@@ -229,7 +241,8 @@ export function ChatbotWidget() {
                         {msg.quickReplies.map((reply) => (
                           <button
                             key={reply}
-                            onClick={() => sendMessage(reply)}
+                            type="button"
+                            onClick={() => void sendMessage(reply)}
                             className="text-xs px-2.5 py-1 rounded-full border border-primary/30 text-primary hover:bg-primary hover:text-white transition-colors"
                           >
                             {reply}
@@ -243,7 +256,6 @@ export function ChatbotWidget() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input */}
               <div className="p-3 border-t border-border">
                 <div className="flex items-center gap-2">
                   <Input
@@ -251,19 +263,35 @@ export function ChatbotWidget() {
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Type a message..."
                     className="text-sm h-9"
-                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        void sendMessage(input);
+                      }
+                    }}
                   />
                   <Button
                     size="icon"
                     className="h-9 w-9 shrink-0"
-                    onClick={() => sendMessage(input)}
+                    onClick={() => void sendMessage(input)}
                     disabled={!input.trim() || isTyping}
+                    aria-label="Send"
                   >
                     {isTyping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>
                 </div>
                 <p className="text-[10px] text-muted-foreground text-center mt-2">
-                  Powered by AI · <button className="text-primary hover:underline" onClick={() => sendMessage("I want to speak to a human")}>Talk to a human</button>
+                  Prefer a full conversation?{" "}
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={() => {
+                      const leadId = sessionStorage.getItem("publicLeadId");
+                      navigate(leadId ? `/chat?leadId=${leadId}` : "/request-demo");
+                    }}
+                  >
+                    Open chat page
+                  </button>
                 </p>
               </div>
             </>

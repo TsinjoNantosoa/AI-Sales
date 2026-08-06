@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { PageLoader } from "@/components/common/LoadingSpinner";
 import { automationService } from "@/services/automationService";
 import type { WorkflowExecution } from "@/types";
-import { cn, formatDateTime, timeAgo } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function AutomationsPage() {
@@ -21,11 +21,11 @@ export function AutomationsPage() {
 
   const { data: executions = [] } = useQuery({
     queryKey: ["executions"],
-    queryFn: automationService.getExecutions,
+    queryFn: () => automationService.getExecutions(),
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, enable }: { id: string; enable: boolean }) => automationService.toggleWorkflow(id, enable),
+    mutationFn: (id: string) => automationService.toggleWorkflow(id),
     onSuccess: (w) => {
       qc.invalidateQueries({ queryKey: ["workflows"] });
       toast.success(`Workflow ${w.status === "active" ? "enabled" : "disabled"}.`);
@@ -35,7 +35,11 @@ export function AutomationsPage() {
   const testMutation = useMutation({
     mutationFn: (id: string) => automationService.testWorkflow(id),
     onMutate: (id) => setTestingId(id),
-    onSuccess: (result) => { toast.success(result.message); setTestingId(null); },
+    onSuccess: (result) => {
+      toast.success(`Test completed: ${result.status}`);
+      setTestingId(null);
+      qc.invalidateQueries({ queryKey: ["executions"] });
+    },
     onError: () => { toast.error("Test failed."); setTestingId(null); },
   });
 
@@ -116,7 +120,7 @@ export function AutomationsPage() {
                   variant="ghost"
                   size="sm"
                   className={cn("h-7 text-xs", w.status === "active" ? "text-orange-600 hover:text-orange-700" : "text-green-600 hover:text-green-700")}
-                  onClick={() => toggleMutation.mutate({ id: w.id, enable: w.status === "inactive" })}
+                  onClick={() => toggleMutation.mutate(w.id)}
                 >
                   <Power className="h-3 w-3 mr-1" />
                   {w.status === "active" ? "Disable" : "Enable"}

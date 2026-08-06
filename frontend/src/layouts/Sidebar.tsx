@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Users, GitBranch, MessageSquare, Calendar,
@@ -10,55 +9,86 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useAppStore } from "@/stores/appStore";
 import { useTheme } from "next-themes";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UserAvatar } from "@/components/common/Avatar";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useTranslation } from "@/hooks/useTranslation";
+import type { UserRole } from "@/types";
 
 interface NavItem {
   to: string;
   icon: React.ComponentType<{ className?: string }>;
-  label: string;
+  labelKey: string;
   badge?: boolean;
-  adminOnly?: boolean;
-  managerUp?: boolean;
+  /** Roles allowed to see this item. Omit = all authenticated roles. */
+  roles?: UserRole[];
 }
 
 interface NavGroup {
-  group: string;
+  groupKey: string;
   items: NavItem[];
 }
 
 const NAV: NavGroup[] = [
   {
-    group: "Overview",
+    groupKey: "nav.overview",
     items: [
-      { to: "/app/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-      { to: "/app/leads", icon: Users, label: "Leads" },
-      { to: "/app/pipeline", icon: GitBranch, label: "Pipeline" },
-      { to: "/app/conversations", icon: MessageSquare, label: "Conversations" },
-      { to: "/app/appointments", icon: Calendar, label: "Appointments" },
-      { to: "/app/tasks", icon: CheckSquare, label: "Tasks" },
-      { to: "/app/automations", icon: Zap, label: "Automations" },
-      { to: "/app/analytics", icon: BarChart3, label: "Analytics" },
+      { to: "/app/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
+      { to: "/app/leads", icon: Users, labelKey: "nav.leads" },
+      { to: "/app/pipeline", icon: GitBranch, labelKey: "nav.pipeline" },
+      { to: "/app/conversations", icon: MessageSquare, labelKey: "nav.conversations" },
+      { to: "/app/appointments", icon: Calendar, labelKey: "nav.appointments" },
+      { to: "/app/tasks", icon: CheckSquare, labelKey: "nav.tasks" },
+      {
+        to: "/app/automations",
+        icon: Zap,
+        labelKey: "nav.automations",
+        roles: ["ADMIN", "SALES_MANAGER"],
+      },
+      {
+        to: "/app/analytics",
+        icon: BarChart3,
+        labelKey: "nav.analytics",
+        roles: ["ADMIN", "SALES_MANAGER"],
+      },
     ],
   },
   {
-    group: "Management",
+    groupKey: "nav.management",
     items: [
-      { to: "/app/team", icon: Building2, label: "Team", managerUp: true },
-      { to: "/app/notifications", icon: Bell, label: "Notifications", badge: true },
-      { to: "/app/audit-logs", icon: Shield, label: "Audit Logs", adminOnly: true },
+      {
+        to: "/app/team",
+        icon: Building2,
+        labelKey: "nav.team",
+        roles: ["ADMIN", "SALES_MANAGER"],
+      },
+      { to: "/app/notifications", icon: Bell, labelKey: "nav.notifications", badge: true },
+      {
+        to: "/app/audit-logs",
+        icon: Shield,
+        labelKey: "nav.auditLogs",
+        roles: ["ADMIN"],
+      },
     ],
   },
   {
-    group: "Configuration",
+    groupKey: "nav.configuration",
     items: [
-      { to: "/app/integrations", icon: Puzzle, label: "Integrations" },
-      { to: "/app/settings", icon: Settings, label: "Settings" },
+      {
+        to: "/app/integrations",
+        icon: Puzzle,
+        labelKey: "nav.integrations",
+        roles: ["ADMIN", "SALES_MANAGER"],
+      },
+      {
+        to: "/app/settings",
+        icon: Settings,
+        labelKey: "nav.settings",
+        roles: ["ADMIN"],
+      },
     ],
   },
 ];
@@ -74,14 +104,17 @@ export function Sidebar({ mobile = false, onClose }: SidebarProps) {
   const { language, setLanguage, sidebarCollapsed, toggleSidebar } = useAppStore();
   const { resolvedTheme, setTheme } = useTheme();
   const { unreadCount } = useNotifications();
+  const { t } = useTranslation();
 
   const collapsed = !mobile && sidebarCollapsed;
 
   const canSee = (item: NavItem) => {
-    if (item.adminOnly && user?.role !== "ADMIN") return false;
-    if (item.managerUp && user?.role === "SALES_REPRESENTATIVE") return false;
-    return true;
+    if (!item.roles) return true;
+    if (!user) return false;
+    return item.roles.includes(user.role);
   };
+
+  const canSeeSettings = user?.role === "ADMIN";
 
   const handleClick = () => {
     if (mobile && onClose) onClose();
@@ -131,14 +164,16 @@ export function Sidebar({ mobile = false, onClose }: SidebarProps) {
         {NAV.map((group) => {
           const visibleItems = group.items.filter(canSee);
           if (!visibleItems.length) return null;
+          const groupLabel = t(group.groupKey);
           return (
-            <div key={group.group} className="mb-2">
+            <div key={group.groupKey} className="mb-2">
               {!collapsed && (
-                <p className="sidebar-group-label px-3 mb-1.5">{group.group}</p>
+                <p className="sidebar-group-label px-3 mb-1.5">{groupLabel}</p>
               )}
               {collapsed && <div className="border-t border-[hsl(var(--sidebar-border))] mb-2 mx-1" />}
               <ul className="space-y-0.5">
                 {visibleItems.map((item) => {
+                  const label = t(item.labelKey);
                   const isActive =
                     location.pathname === item.to ||
                     (item.to !== "/app/dashboard" && location.pathname.startsWith(item.to + "/")) ||
@@ -148,7 +183,7 @@ export function Sidebar({ mobile = false, onClose }: SidebarProps) {
                       <Link
                         to={item.to}
                         onClick={handleClick}
-                        title={collapsed ? item.label : undefined}
+                        title={collapsed ? label : undefined}
                         className={cn(
                           "sidebar-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium",
                           "transition-all duration-150 relative group",
@@ -160,7 +195,7 @@ export function Sidebar({ mobile = false, onClose }: SidebarProps) {
 
                         {!collapsed && (
                           <span className={cn("truncate flex-1", isActive ? "text-white" : "")}>
-                            {item.label}
+                            {label}
                           </span>
                         )}
 
@@ -187,7 +222,7 @@ export function Sidebar({ mobile = false, onClose }: SidebarProps) {
                             "opacity-0 pointer-events-none group-hover:opacity-100",
                             "transition-opacity z-50"
                           )}>
-                            {item.label}
+                            {label}
                           </span>
                         )}
                       </Link>
@@ -276,11 +311,13 @@ export function Sidebar({ mobile = false, onClose }: SidebarProps) {
                   <UserCircle className="h-4 w-4 mr-2" />Profile
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/app/settings" onClick={handleClick}>
-                  <Settings className="h-4 w-4 mr-2" />Settings
-                </Link>
-              </DropdownMenuItem>
+              {canSeeSettings && (
+                <DropdownMenuItem asChild>
+                  <Link to="/app/settings" onClick={handleClick}>
+                    <Settings className="h-4 w-4 mr-2" />Settings
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive focus:bg-destructive/10"

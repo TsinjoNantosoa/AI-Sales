@@ -41,15 +41,18 @@ export function ConversationsPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: conversations = [], isLoading } = useQuery({
-    queryKey: ["conversations"],
-    queryFn: conversationService.getConversations,
+    queryKey: ["conversations", user?.id, user?.role],
+    queryFn: () => conversationService.getConversations({
+      currentUserId: user?.id,
+      role: user?.role,
+    }),
   });
 
   const selectedConv = conversations.find((c) => c.id === selectedId);
 
   useEffect(() => {
     if (conversations.length > 0 && !selectedId) setSelectedId(conversations[0].id);
-  }, [conversations]);
+  }, [conversations, selectedId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -57,12 +60,12 @@ export function ConversationsPage() {
 
   const sendMutation = useMutation({
     mutationFn: (content: string) =>
-      conversationService.sendMessage(selectedId!, content, "agent", `${user?.firstName} ${user?.lastName}`),
+      conversationService.sendMessage(selectedId!, content, "agent"),
     onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ["conversations"] });
       setIsTyping(true);
       await new Promise((r) => setTimeout(r, 1200));
-      await conversationService.getAIResponse(selectedId!);
+      await conversationService.getAIResponse(selectedId!, messageInput);
       setIsTyping(false);
       qc.invalidateQueries({ queryKey: ["conversations"] });
     },

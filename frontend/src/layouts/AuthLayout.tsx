@@ -10,7 +10,10 @@ const FEATURES = [
 ];
 
 export function AuthLayout() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
+  if (!hasHydrated) {
+    return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+  }
   if (isAuthenticated) return <Navigate to="/app/dashboard" replace />;
 
   return (

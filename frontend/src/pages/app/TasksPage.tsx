@@ -14,7 +14,9 @@ import { PriorityBadge } from "@/components/common/StatusBadge";
 import { PageLoader } from "@/components/common/LoadingSpinner";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { taskService } from "@/services/taskService";
-import { mockUsers, mockLeads } from "@/mocks/data";
+import { teamService } from "@/services/teamService";
+import { leadService } from "@/services/leadService";
+import { queryKeys } from "@/lib/queryKeys";
 import type { Task } from "@/types";
 import { cn, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -31,25 +33,37 @@ export function TasksPage() {
     assignedUserId: user?.id ?? "u1", priority: "Medium", dueDate: "",
   });
 
+  const roleOpts = { currentUserId: user?.id, role: user?.role };
+
   const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ["tasks"],
-    queryFn: taskService.getTasks,
+    queryKey: [...queryKeys.tasks.all, user?.id, user?.role],
+    queryFn: () => taskService.getTasks(roleOpts),
+  });
+
+  const { data: users = [] } = useQuery({
+    queryKey: queryKeys.team.all,
+    queryFn: () => teamService.getUsers(),
+  });
+
+  const { data: leads = [] } = useQuery({
+    queryKey: [...queryKeys.leads.all, user?.id, user?.role],
+    queryFn: () => leadService.getLeads(roleOpts),
   });
 
   const completeMutation = useMutation({
     mutationFn: taskService.completeTask,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Task completed!"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.tasks.all }); toast.success("Task completed!"); },
   });
 
   const deleteMutation = useMutation({
     mutationFn: taskService.deleteTask,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Task deleted."); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.tasks.all }); toast.success("Task deleted."); },
   });
 
   const createMutation = useMutation({
     mutationFn: (data: typeof newTask) => {
-      const lead = mockLeads.find((l) => l.id === data.leadId);
-      const assignee = mockUsers.find((u) => u.id === data.assignedUserId);
+      const lead = leads.find((l) => l.id === data.leadId);
+      const assignee = users.find((u) => u.id === data.assignedUserId);
       return taskService.createTask({
         title: data.title,
         description: data.description,
@@ -63,7 +77,7 @@ export function TasksPage() {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: queryKeys.tasks.all });
       toast.success("Task created.");
       setCreateOpen(false);
       setNewTask({ title: "", description: "", leadId: "", assignedUserId: user?.id ?? "u1", priority: "Medium", dueDate: "" });
@@ -284,7 +298,7 @@ export function TasksPage() {
               <Select value={newTask.assignedUserId} onValueChange={(v) => setNewTask({ ...newTask, assignedUserId: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {mockUsers.map((u) => (
+                  {users.map((u) => (
                     <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
                   ))}
                 </SelectContent>
@@ -295,7 +309,7 @@ export function TasksPage() {
               <Select value={newTask.leadId} onValueChange={(v) => setNewTask({ ...newTask, leadId: v })}>
                 <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
                 <SelectContent>
-                  {mockLeads.slice(0, 10).map((l) => (
+                  {leads.slice(0, 10).map((l) => (
                     <SelectItem key={l.id} value={l.id}>{l.firstName} {l.lastName}</SelectItem>
                   ))}
                 </SelectContent>

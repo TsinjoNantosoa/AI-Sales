@@ -15,6 +15,7 @@ type FormData = z.infer<typeof schema>;
 export function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const { register, handleSubmit, getValues, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
@@ -22,7 +23,8 @@ export function ForgotPasswordPage() {
   const onSubmit = async (data: FormData) => {
     setLoading(true);
     try {
-      await authService.forgotPassword(data.email);
+      const result = await authService.forgotPassword(data.email);
+      setResetToken(result.resetToken ?? null);
       setSent(true);
     } finally {
       setLoading(false);
@@ -30,6 +32,10 @@ export function ForgotPasswordPage() {
   };
 
   if (sent) {
+    const resetPath = resetToken
+      ? `/reset-password?token=${encodeURIComponent(resetToken)}`
+      : "/reset-password";
+
     return (
       <div className="text-center">
         <div className="h-14 w-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-4">
@@ -39,6 +45,14 @@ export function ForgotPasswordPage() {
         <p className="text-sm text-muted-foreground mb-6">
           We sent a password reset link to <strong>{getValues("email")}</strong>
         </p>
+        {resetToken && (
+          <div className="mb-6 rounded-lg border border-border bg-muted/40 p-3 text-left">
+            <p className="text-xs text-muted-foreground mb-1">Demo reset link (mock):</p>
+            <Link to={resetPath} className="text-sm text-primary hover:underline break-all">
+              {resetPath}
+            </Link>
+          </div>
+        )}
         <Link to="/login">
           <Button className="w-full" variant="outline">
             <ArrowLeft className="h-4 w-4 mr-2" /> Back to Login

@@ -247,6 +247,7 @@ export interface DashboardOverview {
   meetingsBooked: number;
   conversionRate: number;
   pipelineValue: number;
+  averageResponseTimeSeconds: number;
   avgResponseTime: string;
   changes: {
     totalLeads: number;
@@ -258,6 +259,124 @@ export interface DashboardOverview {
     pipelineValue: number;
   };
 }
+
+export interface LeadTrendPoint {
+  date: string;
+  leads: number;
+  qualified: number;
+  value?: number;
+}
+
+export interface PipelineMetric {
+  status: LeadStatus;
+  label: string;
+  count: number;
+  value: number;
+}
+
+export interface SourceMetric {
+  source: string;
+  count: number;
+  qualificationRate: number;
+  conversionRate: number;
+  pipelineValue: number;
+}
+
+export interface TeamPerformanceMetric {
+  userId: string;
+  name: string;
+  assignedLeads: number;
+  qualifiedLeads: number;
+  meetings: number;
+  wins: number;
+  conversionRate: number;
+  revenue: number;
+}
+
+export interface AutomationPerformanceMetric {
+  workflowId: string;
+  workflowName: string;
+  executions: number;
+  successRate: number;
+  averageDurationMs: number;
+  failedExecutions: number;
+  recoveredExecutions: number;
+}
+
+export interface AnalyticsData {
+  leadTrend: LeadTrendPoint[];
+  funnel: PipelineMetric[];
+  sources: SourceMetric[];
+  teamPerformance: TeamPerformanceMetric[];
+  automationPerformance: AutomationPerformanceMetric[];
+  avgTimeByStage?: { stage: string; days: number }[];
+  aiPerformance?: {
+    conversationsHandled: number;
+    qualificationRate: number;
+    avgScore: number;
+    humanHandoffRate: number;
+    appointmentRate: number;
+  };
+}
+
+export type IntegrationStatus =
+  | "CONNECTED"
+  | "DISCONNECTED"
+  | "CONNECTING"
+  | "ERROR"
+  | "connected"
+  | "available"
+  | "coming_soon";
+
+export interface AppSettings {
+  general: {
+    companyName: string;
+    timezone: string;
+    defaultLanguage: string;
+    currency: string;
+    dateFormat: string;
+  };
+  leadManagement: {
+    autoAssign: boolean;
+    defaultAssigneeId: string;
+    duplicateDetection: boolean;
+    archiveAfterDays: number;
+  };
+  leadScoring: {
+    hotThreshold: number;
+    warmThreshold: number;
+    autoQualifyAt: number;
+  };
+  aiAssistant: {
+    enabled: boolean;
+    name: string;
+    tone: string;
+    handoffThreshold: number;
+  };
+  followUps: {
+    enabled: boolean;
+    firstFollowUpHours: number;
+    maxAttempts: number;
+  };
+  emailTemplates: {
+    welcomeSubject: string;
+    meetingSubject: string;
+    followUpSubject: string;
+  };
+  notifications: {
+    emailEnabled: boolean;
+    inAppEnabled: boolean;
+    hotLeadAlerts: boolean;
+    meetingReminders: boolean;
+  };
+  security: {
+    sessionTimeoutMinutes: number;
+    requireMfa: boolean;
+    passwordMinLength: number;
+  };
+}
+
+export type Settings = AppSettings;
 
 export interface PipelineStage {
   status: LeadStatus;

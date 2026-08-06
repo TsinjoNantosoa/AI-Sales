@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, Loader2, ArrowRight, Bot, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { leadService } from "@/services/leadService";
+import { parseBudgetRange } from "@/lib/score";
+import { toast } from "sonner";
+import { useTranslation } from "@/hooks/useTranslation";
 
 const SERVICES = [
   "AI Automation", "CRM Automation", "RAG Chatbot", "n8n Workflow Development",
@@ -43,13 +47,16 @@ type FormData = z.infer<typeof schema>;
 const STEPS = ["Contact", "Project", "Preferences"];
 
 export function RequestDemoPage() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [leadId, setLeadId] = useState<string | null>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { consent: false },
+    defaultValues: { consent: false, language: "en" },
   });
 
   const { register, handleSubmit, setValue, watch, trigger, formState: { errors } } = form;
@@ -59,19 +66,44 @@ export function RequestDemoPage() {
       ["firstName", "lastName", "companyName", "email", "phone", "country", "companySize"],
       ["serviceNeeded", "estimatedBudget", "desiredTimeline", "projectDescription"],
     ];
-    const valid = await trigger(fields[step] as (keyof FormData)[]);
+    const valid = await trigger(fields[step]);
     if (valid) setStep(step + 1);
   };
 
   const onSubmit = async (data: FormData) => {
-    void data;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setLoading(false);
-    setSubmitted(true);
+    try {
+      const budget = parseBudgetRange(data.estimatedBudget);
+      const created = await leadService.createLead({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        companyName: data.companyName,
+        email: data.email,
+        phone: data.phone,
+        country: data.country,
+        language: data.language || "en",
+        source: "Website",
+        serviceInterest: data.serviceNeeded,
+        timeline: data.desiredTimeline,
+        needDescription: data.projectDescription,
+        consentGiven: data.consent,
+        companySize: data.companySize,
+        ...budget,
+        tags: [data.preferredContactChannel, data.companySize],
+        status: "NEW",
+      });
+      setLeadId(created.id);
+      sessionStorage.setItem("publicLeadId", created.id);
+      setSubmitted(true);
+      toast.success(t("common.success"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to submit");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (submitted) {
+  if (submitted && leadId) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center">
@@ -80,18 +112,17 @@ export function RequestDemoPage() {
           </div>
           <h1 className="text-2xl font-bold text-foreground mb-3">Request received!</h1>
           <p className="text-muted-foreground mb-8">
-            Thank you! Our team will review your request and get back to you within 24 hours. A confirmation has been sent to your email.
+            Thank you! Your lead profile has been created. Continue with our AI assistant to qualify your needs, or book a meeting now.
           </p>
           <div className="space-y-3">
-            <Link to="/book-meeting">
-              <Button className="w-full gap-2">
-                <Calendar className="h-4 w-4" /> Schedule a Meeting Now
-              </Button>
-            </Link>
-            <Button variant="outline" className="w-full gap-2" onClick={() => {
-              const widget = document.querySelector("[data-chatbot]");
-              if (widget) (widget as HTMLElement).click();
-            }}>
+            <Button className="w-full gap-2" onClick={() => navigate(`/book?leadId=${leadId}`)}>
+              <Calendar className="h-4 w-4" /> Schedule a Meeting Now
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              onClick={() => navigate(`/chat?leadId=${leadId}`)}
+            >
               <Bot className="h-4 w-4" /> Continue with AI Assistant
             </Button>
             <Link to="/">
@@ -116,11 +147,10 @@ export function RequestDemoPage() {
             </div>
             <span className="font-bold text-foreground text-xl">AI Sales Assistant</span>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Request a Demo</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t("landing.requestDemo")}</h1>
           <p className="text-muted-foreground text-sm mt-1">Tell us about your project and we'll set up a personalized demo.</p>
         </div>
 
-        {/* Progress */}
         <div className="flex items-center gap-3 mb-8">
           {STEPS.map((s, i) => (
             <div key={s} className="flex items-center gap-3 flex-1">
@@ -140,7 +170,6 @@ export function RequestDemoPage() {
 
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="bg-card rounded-xl border border-border p-6 space-y-5">
-            {/* Step 0: Contact */}
             {step === 0 && (
               <>
                 <h2 className="text-lg font-semibold">Contact Information</h2>
@@ -175,7 +204,7 @@ export function RequestDemoPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label>Country *</Label>
-                    <Select onValueChange={(v) => setValue("country", v)}>
+                    <Select onValueChange={(v) => setValue("country", v, { shouldValidate: true })}>
                       <SelectTrigger><SelectValue placeholder="Select country" /></SelectTrigger>
                       <SelectContent>{COUNTRIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                     </Select>
@@ -183,7 +212,7 @@ export function RequestDemoPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Company Size *</Label>
-                    <Select onValueChange={(v) => setValue("companySize", v)}>
+                    <Select onValueChange={(v) => setValue("companySize", v, { shouldValidate: true })}>
                       <SelectTrigger><SelectValue placeholder="Employees" /></SelectTrigger>
                       <SelectContent>{COMPANY_SIZES.map((s) => <SelectItem key={s} value={s}>{s} employees</SelectItem>)}</SelectContent>
                     </Select>
@@ -193,13 +222,12 @@ export function RequestDemoPage() {
               </>
             )}
 
-            {/* Step 1: Project */}
             {step === 1 && (
               <>
                 <h2 className="text-lg font-semibold">Your Project</h2>
                 <div className="space-y-1.5">
                   <Label>Service Needed *</Label>
-                  <Select onValueChange={(v) => setValue("serviceNeeded", v)}>
+                  <Select onValueChange={(v) => setValue("serviceNeeded", v, { shouldValidate: true })}>
                     <SelectTrigger><SelectValue placeholder="Select a service" /></SelectTrigger>
                     <SelectContent>{SERVICES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select>
@@ -208,7 +236,7 @@ export function RequestDemoPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label>Estimated Budget *</Label>
-                    <Select onValueChange={(v) => setValue("estimatedBudget", v)}>
+                    <Select onValueChange={(v) => setValue("estimatedBudget", v, { shouldValidate: true })}>
                       <SelectTrigger><SelectValue placeholder="Select budget" /></SelectTrigger>
                       <SelectContent>{BUDGETS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
                     </Select>
@@ -216,9 +244,9 @@ export function RequestDemoPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Desired Timeline *</Label>
-                    <Select onValueChange={(v) => setValue("desiredTimeline", v)}>
+                    <Select onValueChange={(v) => setValue("desiredTimeline", v, { shouldValidate: true })}>
                       <SelectTrigger><SelectValue placeholder="Select timeline" /></SelectTrigger>
-                      <SelectContent>{TIMELINES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                      <SelectContent>{TIMELINES.map((tl) => <SelectItem key={tl} value={tl}>{tl}</SelectItem>)}</SelectContent>
                     </Select>
                     {errors.desiredTimeline && <p className="text-xs text-destructive">{errors.desiredTimeline.message}</p>}
                   </div>
@@ -235,14 +263,13 @@ export function RequestDemoPage() {
               </>
             )}
 
-            {/* Step 2: Preferences */}
             {step === 2 && (
               <>
                 <h2 className="text-lg font-semibold">Preferences & Confirmation</h2>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label>Preferred Contact Channel *</Label>
-                    <Select onValueChange={(v) => setValue("preferredContactChannel", v)}>
+                    <Select onValueChange={(v) => setValue("preferredContactChannel", v, { shouldValidate: true })}>
                       <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
                       <SelectContent>{CHANNELS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                     </Select>
@@ -250,7 +277,7 @@ export function RequestDemoPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Preferred Language</Label>
-                    <Select onValueChange={(v) => setValue("language", v)}>
+                    <Select onValueChange={(v) => setValue("language", v)} defaultValue="en">
                       <SelectTrigger><SelectValue placeholder="Select language" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="en">English</SelectItem>
@@ -260,7 +287,6 @@ export function RequestDemoPage() {
                   </div>
                 </div>
 
-                {/* Summary */}
                 <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-2">
                   <p className="text-sm font-medium">Request Summary</p>
                   <div className="grid grid-cols-2 gap-1 text-sm">
@@ -277,7 +303,7 @@ export function RequestDemoPage() {
                   <Checkbox
                     id="consent"
                     checked={watch("consent")}
-                    onCheckedChange={(v) => setValue("consent", v === true)}
+                    onCheckedChange={(v) => setValue("consent", v === true, { shouldValidate: true })}
                   />
                   <Label htmlFor="consent" className="text-sm font-normal cursor-pointer leading-relaxed">
                     I consent to AI Sales Assistant storing and processing my data to respond to this request, in accordance with the privacy policy.
@@ -288,7 +314,6 @@ export function RequestDemoPage() {
             )}
           </div>
 
-          {/* Navigation */}
           <div className="flex items-center justify-between mt-6">
             {step > 0 ? (
               <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>

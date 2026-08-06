@@ -1,71 +1,115 @@
 import { useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Edit, Mail, Phone, Calendar, CheckSquare, Flag,
-  Tag, Building2, Globe, Zap, MessageSquare, Clock, FileText, Plus, Loader2, Trash2
+  ArrowLeft, Edit, Mail, Phone, Calendar, Flag,
+  Tag, Building2, Globe, Zap, Clock, Plus, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge, TemperatureBadge, PriorityBadge } from "@/components/common/StatusBadge";
-import { ScoreIndicator } from "@/components/common/ScoreIndicator";
 import { UserAvatar } from "@/components/common/Avatar";
 import { PageLoader } from "@/components/common/LoadingSpinner";
 import { LeadFormModal } from "@/components/leads/LeadFormModal";
 import { leadService } from "@/services/leadService";
-import { mockUsers, mockActivities, mockConversations, mockAppointments, mockTasks, mockEmailLogs, mockWorkflowExecutions } from "@/mocks/data";
-import { formatCurrency, formatDate, formatDateTime, timeAgo, cn, getScoreBg } from "@/lib/utils";
+import { teamService } from "@/services/teamService";
+import { dashboardService } from "@/services/dashboardService";
+import { conversationService } from "@/services/conversationService";
+import { appointmentService } from "@/services/appointmentService";
+import { taskService } from "@/services/taskService";
+import { automationService } from "@/services/automationService";
+import { queryKeys } from "@/lib/queryKeys";
+import { formatCurrency, formatDate, formatDateTime, timeAgo, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import { Progress } from "@/components/ui/progress";
 
 export function LeadDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const { user } = useAuthStore();
   const [editOpen, setEditOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
-  const [addingNote, setAddingNote] = useState(false);
 
   const { data: lead, isLoading } = useQuery({
-    queryKey: ["lead", id],
+    queryKey: queryKeys.leads.detail(id!),
     queryFn: () => leadService.getLead(id!),
     enabled: !!id,
   });
 
   const { data: notes = [] } = useQuery({
-    queryKey: ["notes", id],
+    queryKey: queryKeys.leads.notes(id!),
     queryFn: () => leadService.getNotes(id!),
+    enabled: !!id,
+  });
+
+  const { data: users = [] } = useQuery({
+    queryKey: queryKeys.team.all,
+    queryFn: () => teamService.getUsers(),
+  });
+
+  const { data: activities = [] } = useQuery({
+    queryKey: queryKeys.activities.byLead(id!),
+    queryFn: () => dashboardService.getActivities(id!),
+    enabled: !!id,
+  });
+
+  const { data: allConversations = [] } = useQuery({
+    queryKey: queryKeys.conversations.all,
+    queryFn: () => conversationService.getConversations(),
+    enabled: !!id,
+  });
+
+  const { data: allAppointments = [] } = useQuery({
+    queryKey: queryKeys.appointments.all,
+    queryFn: () => appointmentService.getAppointments(),
+    enabled: !!id,
+  });
+
+  const { data: allTasks = [] } = useQuery({
+    queryKey: queryKeys.tasks.all,
+    queryFn: () => taskService.getTasks(),
+    enabled: !!id,
+  });
+
+  const { data: emails = [] } = useQuery({
+    queryKey: ["leads", "emails", id],
+    queryFn: () => leadService.getEmailLogs(id!),
+    enabled: !!id,
+  });
+
+  const { data: workflowRuns = [] } = useQuery({
+    queryKey: [...queryKeys.automations.executions, id],
+    queryFn: () => automationService.getExecutions(id!),
     enabled: !!id,
   });
 
   const addNoteMutation = useMutation({
     mutationFn: (content: string) => leadService.addNote(id!, content, user?.id ?? "u1", user ? `${user.firstName} ${user.lastName}` : "Admin"),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["notes", id] });
+      qc.invalidateQueries({ queryKey: queryKeys.leads.notes(id!) });
       setNoteText("");
-      setAddingNote(false);
       toast.success("Note added successfully.");
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: Parameters<typeof leadService.updateLead>[1]) => leadService.updateLead(id!, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["lead", id] }); toast.success("Lead updated."); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.leads.detail(id!) });
+      qc.invalidateQueries({ queryKey: queryKeys.leads.all });
+      toast.success("Lead updated.");
+    },
   });
 
   if (isLoading) return <PageLoader />;
   if (!lead) return <div className="p-6"><p className="text-muted-foreground">Lead not found.</p></div>;
 
-  const assignedUser = mockUsers.find((u) => u.id === lead.assignedUserId);
-  const activities = mockActivities.filter((a) => a.leadId === lead.id);
-  const conversations = mockConversations.filter((c) => c.leadId === lead.id);
-  const appointments = mockAppointments.filter((a) => a.leadId === lead.id);
-  const tasks = mockTasks.filter((t) => t.leadId === lead.id);
-  const emails = mockEmailLogs.filter((e) => e.leadId === lead.id);
-  const workflowRuns = mockWorkflowExecutions.filter((e) => e.relatedLeadId === lead.id);
+  const assignedUser = users.find((u) => u.id === lead.assignedUserId);
+  const conversations = allConversations.filter((c) => c.leadId === lead.id);
+  const appointments = allAppointments.filter((a) => a.leadId === lead.id);
+  const tasks = allTasks.filter((t) => t.leadId === lead.id);
 
   const scoreBreakdown = [
     { label: "Budget Fit", points: Math.round(lead.score * 0.29), max: 25, color: "bg-blue-500" },

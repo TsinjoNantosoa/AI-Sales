@@ -1,282 +1,94 @@
 # AI Sales Assistant — Frontend
 
-A complete, production-ready **SaaS sales automation platform** built with React, TypeScript, and shadcn/ui. Designed to be presented in a professional portfolio and connected to a FastAPI backend.
+Frontend SaaS React/TypeScript pour **AI Sales Assistant** : capture de leads, qualification IA, CRM, pipeline Kanban, réservations, automatisations et analytics. Le mode mock est fonctionnel et persistant ; le mode API est prêt pour un backend FastAPI.
 
----
+## Stack
 
-## Overview
+React 18 · TypeScript · Vite · Tailwind · shadcn/ui · TanStack Query · React Router · Zustand · React Hook Form · Zod · Recharts · @dnd-kit · Vitest · Playwright
 
-**AI Sales Assistant** automates the full sales lifecycle:
-
-1. **Lead Capture** — Public form and AI chatbot collect and qualify prospects
-2. **AI Qualification** — Automatic lead scoring (budget, urgency, service fit, authority)
-3. **CRM Pipeline** — Kanban board with drag-and-drop status management
-4. **Calendar Booking** — Calendly-like booking page with Google Calendar simulation
-5. **Automated Follow-ups** — n8n workflow automation with execution tracking
-6. **Sales Analytics** — Rich dashboards with Recharts
-
----
-
-## Features
-
-| Module | Description |
-|---|---|
-| Landing Page | Hero, features, how-it-works, integrations, CTA |
-| Lead Capture Form | 3-step form with Zod validation |
-| AI Chatbot | Floating widget with qualification flow |
-| Public Booking | Calendly-style meeting scheduler |
-| Dashboard | 8 KPI cards + 5 charts |
-| Leads CRM | Table with filters, sort, pagination, bulk actions |
-| Pipeline Kanban | Drag-and-drop with @dnd-kit |
-| Lead Detail | Full profile with 9 tabs |
-| Conversations | Inbox-style messaging with AI/human support |
-| Appointments | Calendar + list + availability views |
-| Tasks | Full task management with priorities |
-| Automations | n8n workflow monitoring |
-| Analytics | Advanced sales analytics |
-| Notifications | Categorized notification center |
-| Team Management | User table with admin actions |
-| Audit Logs | Admin-only security trail |
-| Integrations | n8n, Google Calendar, Gmail + coming soon |
-| Settings | 8-tab configuration panel |
-| User Profile | Profile, password, notifications, calendar |
-| Auth | Login with demo accounts, forgot password |
-| i18n | English + French with centralized translations |
-| Dark Mode | Full dark/light theme support |
-
----
-
-## Tech Stack
-
-| Technology | Purpose |
-|---|---|
-| React 18 | UI framework |
-| TypeScript (strict) | Type safety |
-| Vite | Build tool |
-| Tailwind CSS | Styling |
-| shadcn/ui | Component library |
-| TanStack Query | Server state |
-| React Router v6 | Routing |
-| React Hook Form | Forms |
-| Zod | Validation |
-| Zustand | Global state |
-| Recharts | Charts |
-| @dnd-kit | Kanban drag-and-drop |
-| date-fns | Date utilities |
-| Sonner | Toast notifications |
-| next-themes | Dark/light mode |
-
----
-
-## Installation
+## Démarrage
 
 ```bash
-# 1. Clone the project
-git clone <repo-url>
-cd ai-sales-assistant
-
-# 2. Install dependencies
+cd frontend
 npm install
-
-# 3. Configure environment
 cp .env.example .env
-
-# 4. Start development server
 npm run dev
 ```
 
----
+Ouvrir `http://localhost:5173`.
 
-## Environment Variables
+## Comptes démo
+
+| Rôle | Email | Mot de passe |
+|------|-------|--------------|
+| Admin | admin@aisales.demo | Demo123! |
+| Sales Manager | manager@aisales.demo | Demo123! |
+| Sales Rep | sales@aisales.demo | Demo123! |
+
+Les mots de passe ne sont **jamais** stockés dans `localStorage`.
+
+## Variables d'environnement
 
 ```env
-VITE_API_URL=http://localhost:8000/api/v1   # Backend URL
-VITE_USE_MOCKS=true                          # true = mock data, false = real API
+VITE_API_URL=http://localhost:8000/api/v1
+VITE_USE_MOCKS=true
 VITE_APP_NAME=AI Sales Assistant
 VITE_DEFAULT_LANGUAGE=en
 ```
 
-> **Important**: Never store API keys, OAuth secrets, or SMTP passwords in the frontend. All secrets must stay in the FastAPI backend.
+- `VITE_USE_MOCKS=true` → repository mock partagé + `localStorage`
+- `VITE_USE_MOCKS=false` → `apiClient` vers FastAPI
 
----
-
-## Demo Accounts
-
-| Role | Email | Password |
-|---|---|---|
-| Admin | admin@aisales.demo | Demo123! |
-| Sales Manager | manager@aisales.demo | Demo123! |
-| Sales Representative | sales@aisales.demo | Demo123! |
-
-**Role differences:**
-- **Admin** — Full access including audit logs, team management, all settings
-- **Sales Manager** — All leads, all team members, analytics
-- **Sales Representative** — Own assigned leads and conversations
-
----
-
-## NPM Scripts
+## Scripts
 
 ```bash
-npm run dev        # Start development server (http://localhost:5173)
-npm run build      # TypeScript check + production build
-npm run preview    # Preview production build locally
-npm run lint       # ESLint code quality check
-npm run typecheck  # TypeScript type check only
+npm run typecheck
+npm run lint
+npm run build
+npm run test
+npm run test:e2e
+npm run preview
 ```
 
----
-
-## Project Architecture
+## Architecture données
 
 ```
-src/
-├── components/
-│   ├── chatbot/       # ChatbotWidget (floating AI assistant)
-│   ├── common/        # Avatar, StatusBadge, EmptyState, ConfirmDialog...
-│   ├── dashboard/     # KpiCard
-│   ├── leads/         # LeadFormModal
-│   └── ui/            # shadcn/ui base components
-├── hooks/
-│   └── useNotifications.ts
-├── layouts/
-│   ├── AppLayout.tsx   # Authenticated layout with sidebar
-│   ├── AuthLayout.tsx  # Login/forgot password layout
-│   ├── PublicLayout.tsx # Public pages + chatbot
-│   └── Sidebar.tsx
-├── lib/
-│   ├── i18n.ts        # English + French translations
-│   └── utils.ts       # formatCurrency, cn, getStatusColor...
-├── mocks/
-│   └── data.ts        # 25+ leads, 6 users, 20 tasks, 8 appointments...
-├── pages/
-│   ├── auth/          # LoginPage, ForgotPasswordPage
-│   ├── app/           # All CRM pages (15 pages)
-│   └── public/        # LandingPage, RequestDemoPage, BookMeetingPage
-├── services/          # All API service layers (mock + real)
-│   ├── api.ts
-│   ├── authService.ts
-│   ├── leadService.ts
-│   ├── conversationService.ts
-│   ├── appointmentService.ts
-│   ├── taskService.ts
-│   ├── notificationService.ts
-│   ├── analyticsService.ts
-│   └── automationService.ts
-├── stores/
-│   ├── authStore.ts   # Zustand auth store (persisted)
-│   └── appStore.ts    # Zustand app store (language, sidebar)
-└── types/
-    └── index.ts       # All TypeScript interfaces
+Page → TanStack Query / hook → service → mockRepository | apiClient
 ```
 
----
+Les pages n'importent pas `src/mocks/data` directement.
 
-## Mock Data
+## Parcours public
 
-Located in `src/mocks/data.ts`:
+1. `/` Landing
+2. `/request-demo` crée un lead (`status: NEW`, `source: Website`)
+3. `/chat?leadId=…` qualification IA (score / température / conversation)
+4. `/book?leadId=…` rendez-vous + statut `MEETING_SCHEDULED`
+5. Visible dans CRM, pipeline et dashboard (persistance mock)
 
-- **26 leads** from 15+ countries (US, France, UK, Germany, Canada, Madagascar, South Africa, Australia...)
-- **6 users** with different roles and performance metrics
-- **20 tasks** with priorities, assignments, due dates
-- **8 appointments** in various statuses (Confirmed, Proposed, Completed, Cancelled)
-- **4 conversations** with full message threads
-- **10 notifications** across all categories
-- **6 n8n workflows** with execution history
-- **12 audit log entries**
-- **30-day lead time series** for charts
+## RBAC
 
----
+- **ADMIN** : accès complet
+- **SALES_MANAGER** : opérationnel + team / analytics / integrations (pas settings sensibles / audit)
+- **SALES_REPRESENTATIVE** : uniquement ses données (`assignedUserId`)
 
-## Mock vs. Real API
+Guards : `AuthGuard`, `GuestGuard`, `RoleGuard`.
 
-The `VITE_USE_MOCKS` environment variable controls the data source:
+## Déploiement Vercel
 
-```typescript
-// src/services/api.ts
-const USE_MOCKS = import.meta.env.VITE_USE_MOCKS !== "false";
+`vercel.json` réécrit toutes les routes vers `index.html` pour React Router.
 
-// src/services/leadService.ts
-async getLeads(): Promise<Lead[]> {
-  if (USE_MOCKS) {
-    await delay();
-    return [...leads]; // Returns mock data
-  }
-  return apiRequest("/leads"); // Calls FastAPI
-}
-```
+## Backend FastAPI attendu
 
-To connect to the real backend:
-1. Set `VITE_USE_MOCKS=false` in `.env`
-2. Set `VITE_API_URL=https://your-api.com/api/v1`
-3. Implement JWT token handling in `src/services/api.ts`
+Endpoints principaux :
 
----
+- `POST /auth/login`, `POST /auth/forgot-password`, `POST /auth/reset-password`, `GET /auth/me`
+- `GET|POST /leads`, `GET|PATCH|DELETE /leads/:id`, notes, import, bulk
+- `GET|POST /appointments`, slots calendrier
+- `GET /conversations`, messages, handoff, qualify
+- `GET /dashboard/overview`, analytics
+- `GET|PATCH /settings`, `GET|POST /integrations/:id/*`
+- `GET /users`, invite, stats
+- `GET /audit-logs`, `GET /notifications`, `GET /tasks`, automations
 
-## Connecting to FastAPI
-
-Expected endpoints (already prepared in services):
-
-```
-POST /auth/login          → authService.login()
-GET  /auth/me             → authService.getMe()
-GET  /leads               → leadService.getLeads()
-POST /leads               → leadService.createLead()
-GET  /leads/:id           → leadService.getLead()
-PATCH /leads/:id          → leadService.updateLead()
-DELETE /leads/:id         → leadService.deleteLead()
-GET  /conversations       → conversationService.getConversations()
-POST /conversations/:id/messages → conversationService.sendMessage()
-GET  /appointments        → appointmentService.getAppointments()
-GET  /tasks               → taskService.getTasks()
-GET  /dashboard/overview  → analyticsService.getOverview()
-GET  /automations         → automationService.getWorkflows()
-```
-
----
-
-## Deployment on Vercel
-
-```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy
-vercel
-
-# Production
-vercel --prod
-```
-
-**vercel.json** (create at root if needed for SPA routing):
-```json
-{
-  "rewrites": [{ "source": "/(.*)", "destination": "/" }]
-}
-```
-
----
-
-## MVP Limitations
-
-- No real OAuth (Google Calendar connection is simulated)
-- No real AI (chatbot uses scripted responses; real AI requires FastAPI + OpenAI)
-- No real email sending (Gmail integration is UI-only)
-- No WebSocket (live conversation updates require backend)
-- No file uploads (CSV import is UI-only)
-- Authentication uses localStorage (no token refresh in mock mode)
-
----
-
-## Screenshots
-
-Place screenshots in `/public/screenshots/`:
-- `dashboard.png` — KPI cards + charts
-- `pipeline.png` — Kanban board
-- `lead-detail.png` — Full lead profile
-- `chatbot.png` — AI chatbot widget
-- `analytics.png` — Sales analytics
-
----
-
-Built with precision for portfolio presentation. Ready to connect to a FastAPI backend.
+Toutes les clés secrètes (OpenAI, Google OAuth, SMTP, n8n) restent côté backend.

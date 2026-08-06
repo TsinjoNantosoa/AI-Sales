@@ -1,41 +1,52 @@
-import { mockNotifications } from "@/mocks/data";
 import type { Notification } from "@/types";
-import { USE_MOCKS, apiRequest } from "./api";
+import { USE_MOCKS } from "@/lib/constants";
+import { apiClient } from "@/lib/apiClient";
+import { getDatabase, markNotificationRead, createNotification } from "@/mocks/mockRepository";
 
-let notifications = [...mockNotifications];
-const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
+const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 
 export const notificationService = {
   async getNotifications(): Promise<Notification[]> {
-    if (USE_MOCKS) { await delay(); return [...notifications]; }
-    return apiRequest("/notifications");
+    if (USE_MOCKS) {
+      await delay();
+      return [...getDatabase().notifications];
+    }
+    return apiClient.get("/notifications");
   },
 
-  async markRead(id: string): Promise<void> {
+  async markRead(id: string): Promise<Notification> {
     if (USE_MOCKS) {
       await delay(100);
-      const idx = notifications.findIndex((n) => n.id === id);
-      if (idx !== -1) notifications[idx] = { ...notifications[idx], read: true };
-      return;
+      return markNotificationRead(id);
     }
-    return apiRequest(`/notifications/${id}/read`, { method: "POST" });
+    return apiClient.post(`/notifications/${id}/read`);
   },
 
   async markAllRead(): Promise<void> {
     if (USE_MOCKS) {
-      await delay(200);
-      notifications = notifications.map((n) => ({ ...n, read: true }));
+      await delay(150);
+      getDatabase().notifications.forEach((n) => {
+        n.read = true;
+      });
       return;
     }
-    return apiRequest("/notifications/read-all", { method: "POST" });
+    await apiClient.post("/notifications/read-all");
   },
 
   async deleteNotification(id: string): Promise<void> {
     if (USE_MOCKS) {
-      await delay(200);
-      notifications = notifications.filter((n) => n.id !== id);
+      await delay(100);
+      const db = getDatabase();
+      db.notifications = db.notifications.filter((n) => n.id !== id);
       return;
     }
-    return apiRequest(`/notifications/${id}`, { method: "DELETE" });
+    await apiClient.delete(`/notifications/${id}`);
+  },
+
+  async create(data: Omit<Notification, "id" | "createdAt" | "read">): Promise<Notification> {
+    if (USE_MOCKS) {
+      return createNotification(data);
+    }
+    return apiClient.post("/notifications", data);
   },
 };

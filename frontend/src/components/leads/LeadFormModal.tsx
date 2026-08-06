@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { leadService } from "@/services/leadService";
-import { mockUsers } from "@/mocks/data";
+import { teamService } from "@/services/teamService";
+import { queryKeys } from "@/lib/queryKeys";
 import type { Lead } from "@/types";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -49,6 +50,12 @@ interface Props {
 export function LeadFormModal({ open, onOpenChange, lead }: Props) {
   const qc = useQueryClient();
   const isEdit = !!lead;
+
+  const { data: users = [] } = useQuery({
+    queryKey: queryKeys.team.all,
+    queryFn: () => teamService.getUsers(),
+    enabled: open,
+  });
 
   const { register, handleSubmit, setValue, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -102,7 +109,7 @@ export function LeadFormModal({ open, onOpenChange, lead }: Props) {
       return leadService.createLead(payload as Omit<Lead, "id" | "createdAt" | "updatedAt">);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["leads"] });
+      qc.invalidateQueries({ queryKey: queryKeys.leads.all });
       toast.success(isEdit ? "Lead updated successfully." : "Lead created successfully.");
       onOpenChange(false);
     },
@@ -111,6 +118,7 @@ export function LeadFormModal({ open, onOpenChange, lead }: Props) {
 
   const SERVICES = ["AI Automation", "CRM Automation", "RAG Chatbot", "n8n Workflow Development", "Odoo Integration", "Custom Software Development", "Other"];
   const STATUSES: Lead["status"][] = ["NEW","CONTACTED","QUALIFYING","QUALIFIED","MEETING_SCHEDULED","PROPOSAL_SENT","NEGOTIATION","WON","LOST","INACTIVE"];
+  const salesUsers = users.filter((u) => u.role !== "ADMIN");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -219,7 +227,7 @@ export function LeadFormModal({ open, onOpenChange, lead }: Props) {
                 <Select onValueChange={(v) => setValue("assignedUserId", v)} defaultValue={lead?.assignedUserId}>
                   <SelectTrigger><SelectValue placeholder="Select salesperson" /></SelectTrigger>
                   <SelectContent>
-                    {mockUsers.filter((u) => u.role !== "ADMIN").map((u) => (
+                    {salesUsers.map((u) => (
                       <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
                     ))}
                   </SelectContent>

@@ -1,16 +1,17 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
-const USE_MOCKS = import.meta.env.VITE_USE_MOCKS !== "false";
+export { API_URL, USE_MOCKS } from "@/lib/constants";
+export { apiClient, ApiError } from "@/lib/apiClient";
 
-export { API_URL, USE_MOCKS };
-
+/** @deprecated Prefer apiClient — kept for gradual migration */
 export async function apiRequest<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json();
+  const { apiClient } = await import("@/lib/apiClient");
+  const method = (options?.method ?? "GET").toUpperCase();
+  const body = options?.body ? JSON.parse(options.body as string) : undefined;
+  if (method === "POST") return apiClient.post<T>(path, body);
+  if (method === "PATCH") return apiClient.patch<T>(path, body);
+  if (method === "PUT") return apiClient.put<T>(path, body);
+  if (method === "DELETE") return apiClient.delete<T>(path);
+  return apiClient.get<T>(path);
 }

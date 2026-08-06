@@ -8,48 +8,74 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { KpiCard } from "@/components/dashboard/KpiCard";
-import { StatusBadge } from "@/components/common/StatusBadge";
 import { ScoreIndicator } from "@/components/common/ScoreIndicator";
 import { UserAvatar } from "@/components/common/Avatar";
 import { PageLoader } from "@/components/common/LoadingSpinner";
-import { analyticsService } from "@/services/analyticsService";
-import { mockLeads, mockActivities, mockAppointments, mockUsers, mockDashboardOverview } from "@/mocks/data";
+import { analyticsService, dashboardService } from "@/services/dashboardService";
+import { leadService } from "@/services/leadService";
+import { appointmentService } from "@/services/appointmentService";
+import { teamService } from "@/services/teamService";
+import { queryKeys } from "@/lib/queryKeys";
+import { useAuthStore } from "@/stores/authStore";
 import { formatCurrency, formatDate, timeAgo } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import type { DashboardOverview, PipelineStage, SourceData, TimeSeriesData } from "@/types";
+import type { DashboardOverview, PipelineStage, SourceData, LeadTrendPoint } from "@/types";
 
 const SOURCE_COLORS = ["#3b82f6","#22c55e","#8b5cf6","#f97316","#f43f5e","#64748b","#0ea5e9"];
 const PIPELINE_COLORS = ["#94a3b8","#3b82f6","#f59e0b","#22c55e","#8b5cf6","#6366f1","#f97316","#10b981"];
 
 export function DashboardPage() {
-  const { data: overview = mockDashboardOverview, isLoading } = useQuery<DashboardOverview>({
-    queryKey: ["dashboard-overview"],
-    queryFn: () => analyticsService.getOverview() as Promise<DashboardOverview>,
+  const user = useAuthStore((s) => s.user);
+  const roleOpts = { currentUserId: user?.id, role: user?.role };
+
+  const { data: overview, isLoading } = useQuery<DashboardOverview>({
+    queryKey: [...queryKeys.dashboard.overview, user?.id, user?.role],
+    queryFn: () => analyticsService.getOverview(roleOpts),
   });
 
-  const { data: timeSeries = [], isLoading: loadingTS } = useQuery<TimeSeriesData[]>({
-    queryKey: ["lead-timeseries"],
-    queryFn: () => analyticsService.getLeadTimeSeries() as Promise<TimeSeriesData[]>,
+  const { data: timeSeries = [], isLoading: loadingTS } = useQuery<LeadTrendPoint[]>({
+    queryKey: [...queryKeys.dashboard.timeseries, user?.id, user?.role],
+    queryFn: () => analyticsService.getLeadTimeSeries(roleOpts),
   });
 
   const { data: pipeline = [] } = useQuery<PipelineStage[]>({
-    queryKey: ["pipeline-data"],
-    queryFn: () => analyticsService.getPipelineData() as Promise<PipelineStage[]>,
+    queryKey: [...queryKeys.dashboard.pipeline, user?.id, user?.role],
+    queryFn: () => analyticsService.getPipelineData(roleOpts),
   });
 
   const { data: sources = [] } = useQuery<SourceData[]>({
-    queryKey: ["source-data"],
-    queryFn: () => analyticsService.getSourceData() as Promise<SourceData[]>,
+    queryKey: queryKeys.dashboard.sources,
+    queryFn: () => analyticsService.getSourceData(),
   });
 
-  if (isLoading) return <PageLoader />;
+  const { data: leads = [] } = useQuery({
+    queryKey: [...queryKeys.leads.all, user?.id, user?.role],
+    queryFn: () => leadService.getLeads(roleOpts),
+  });
 
-  const hotLeads = mockLeads.filter((l) => l.temperature === "HOT").slice(0, 5);
-  const recentActs = mockActivities.slice(0, 6);
-  const upcomingAppts = mockAppointments.filter((a) => a.status === "Confirmed").slice(0, 4);
+  const { data: activities = [] } = useQuery({
+    queryKey: queryKeys.activities.all,
+    queryFn: () => dashboardService.getActivities(),
+  });
+
+  const { data: appointments = [] } = useQuery({
+    queryKey: [...queryKeys.appointments.all, user?.id, user?.role],
+    queryFn: () => appointmentService.getAppointments(roleOpts),
+  });
+
+  const { data: users = [] } = useQuery({
+    queryKey: queryKeys.team.all,
+    queryFn: () => teamService.getUsers(),
+  });
+
+  if (isLoading || !overview) return <PageLoader />;
+
+  const hotLeads = leads.filter((l) => l.temperature === "HOT").slice(0, 5);
+  const recentActs = activities.slice(0, 6);
+  const upcomingAppts = appointments.filter((a) => a.status === "Confirmed").slice(0, 4);
   const getUserName = (id?: string) => {
-    const u = mockUsers.find((u) => u.id === id);
+    const u = users.find((u) => u.id === id);
     return u ? `${u.firstName} ${u.lastName}` : "Unassigned";
   };
 
@@ -109,7 +135,7 @@ export function DashboardPage() {
                   labelFormatter={(l: string) => formatDate(l)}
                   itemStyle={{ color: "#3b82f6" }}
                 />
-                <Area type="monotone" dataKey="value" name="Leads" stroke="#3b82f6" strokeWidth={2.5} fill="url(#leadGrad)" dot={false} />
+                <Area type="monotone" dataKey="leads" name="Leads" stroke="#3b82f6" strokeWidth={2.5} fill="url(#leadGrad)" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}

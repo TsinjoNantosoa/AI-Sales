@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
 import {
-  Bot, Zap, BarChart3, Calendar, MessageSquare, TrendingUp,
+  Bot, Zap, BarChart3, Calendar, TrendingUp,
   ArrowRight, CheckCircle, Star, ChevronRight, Globe, Shield,
-  Users, Layers, Cpu,
+  Layers, Cpu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

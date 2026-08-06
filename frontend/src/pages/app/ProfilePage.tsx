@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -32,7 +31,6 @@ type PwData = z.infer<typeof pwSchema>;
 
 export function ProfilePage() {
   const { user, updateUser } = useAuthStore();
-  const [showCurrentPw, setShowCurrentPw] = useState(false);
 
   const profileForm = useForm<ProfileData>({
     resolver: zodResolver(profileSchema),
