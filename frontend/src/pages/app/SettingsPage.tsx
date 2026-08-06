@@ -13,6 +13,7 @@ import { settingsService } from "@/services/settingsService";
 import { queryKeys } from "@/lib/queryKeys";
 import type { Settings } from "@/types";
 import { toast } from "sonner";
+import { useTranslation } from "@/hooks/useTranslation";
 
 const EMAIL_TEMPLATES = [
   { id: "welcome", name: "Welcome Email", subject: "Welcome to AI Sales Assistant — Your Demo Request" },
@@ -99,6 +100,7 @@ const DEFAULT_EXTRAS: LocalExtras = {
 };
 
 export function SettingsPage() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [activeTemplate, setActiveTemplate] = useState("welcome");
   const [draft, setDraft] = useState<Settings | null>(null);
@@ -142,9 +144,9 @@ export function SettingsPage() {
     onSuccess: (updated, { section }) => {
       qc.setQueryData(queryKeys.settings.all, updated);
       setDraft(updated);
-      toast.success(`${section} settings saved.`);
+      toast.success(t("toast.settingsSaved", { section }));
     },
-    onError: () => toast.error("Failed to save settings."),
+    onError: () => toast.error(t("toast.settingsSaveFailed")),
   });
 
   if (isLoading || !draft) return <PageLoader />;
@@ -156,8 +158,8 @@ export function SettingsPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-        <p className="text-sm text-muted-foreground">Configure your AI Sales Assistant platform</p>
+        <h1 className="text-2xl font-bold text-foreground">{t("pages.settings.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("pages.settings.subtitle")}</p>
       </div>
 
       <Tabs defaultValue="general">

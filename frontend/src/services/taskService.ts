@@ -6,9 +6,17 @@ import {
   createTask as repoCreate,
   updateTask as repoUpdate,
   completeTask as repoComplete,
+  persistDatabase,
 } from "@/mocks/mockRepository";
 
 const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
+
+export class ForbiddenError extends Error {
+  constructor(message = "Forbidden") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}
 
 export const taskService = {
   async getTasks(opts?: { currentUserId?: string; role?: string }): Promise<Task[]> {
@@ -21,6 +29,23 @@ export const taskService = {
       return list;
     }
     return apiClient.get("/tasks");
+  },
+
+  async getTask(id: string, opts?: { currentUserId?: string; role?: string }): Promise<Task> {
+    if (USE_MOCKS) {
+      await delay(150);
+      const task = getDatabase().tasks.find((t) => t.id === id);
+      if (!task) throw new Error("Task not found");
+      if (
+        opts?.role === "SALES_REPRESENTATIVE" &&
+        opts.currentUserId &&
+        task.assignedUserId !== opts.currentUserId
+      ) {
+        throw new ForbiddenError();
+      }
+      return task;
+    }
+    return apiClient.get(`/tasks/${id}`);
   },
 
   async createTask(data: Omit<Task, "id" | "createdAt">): Promise<Task> {
@@ -44,6 +69,7 @@ export const taskService = {
       await delay();
       const db = getDatabase();
       db.tasks = db.tasks.filter((t) => t.id !== id);
+      persistDatabase();
       return;
     }
     await apiClient.delete(`/tasks/${id}`);

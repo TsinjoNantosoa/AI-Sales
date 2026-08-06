@@ -1,7 +1,10 @@
 import type { Workflow, WorkflowExecution } from "@/types";
 import { USE_MOCKS } from "@/lib/constants";
 import { apiClient } from "@/lib/apiClient";
-import { getDatabase } from "@/mocks/mockRepository";
+import {
+  getDatabase,
+  persistDatabase,
+} from "@/mocks/mockRepository";
 
 const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
 
@@ -29,7 +32,8 @@ export const automationService = {
       const w = getDatabase().workflows.find((x) => x.id === id);
       if (!w) throw new Error("Not found");
       w.status = w.status === "active" ? "inactive" : "active";
-      return w;
+      persistDatabase();
+      return { ...w };
     }
     return apiClient.post(`/automations/workflows/${id}/toggle`);
   },
@@ -37,7 +41,8 @@ export const automationService = {
   async testWorkflow(id: string): Promise<WorkflowExecution> {
     if (USE_MOCKS) {
       await delay(600);
-      const w = getDatabase().workflows.find((x) => x.id === id);
+      const db = getDatabase();
+      const w = db.workflows.find((x) => x.id === id);
       if (!w) throw new Error("Not found");
       const exec: WorkflowExecution = {
         id: `exec${Date.now()}`,
@@ -48,9 +53,10 @@ export const automationService = {
         duration: "1.8s",
         retryCount: 0,
       };
-      getDatabase().workflowExecutions = [exec, ...getDatabase().workflowExecutions];
+      db.workflowExecutions = [exec, ...db.workflowExecutions];
       w.totalExecutions += 1;
       w.lastExecution = exec.startedAt;
+      persistDatabase();
       return exec;
     }
     return apiClient.post(`/automations/workflows/${id}/test`);

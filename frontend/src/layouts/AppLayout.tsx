@@ -7,44 +7,46 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Toaster } from "sonner";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useTranslation } from "@/hooks/useTranslation";
+import type { TranslationPath } from "@/hooks/useTranslation";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
-const ROUTE_LABELS: Record<string, string> = {
-  "/app/dashboard": "Dashboard",
-  "/app/leads": "Leads",
-  "/app/pipeline": "Pipeline",
-  "/app/conversations": "Conversations",
-  "/app/appointments": "Appointments",
-  "/app/tasks": "Tasks",
-  "/app/automations": "Automations",
-  "/app/analytics": "Analytics",
-  "/app/team": "Team",
-  "/app/notifications": "Notifications",
-  "/app/audit-logs": "Audit Logs",
-  "/app/integrations": "Integrations",
-  "/app/settings": "Settings",
-  "/app/profile": "My Profile",
+const ROUTE_LABEL_KEYS: Record<string, TranslationPath> = {
+  "/app/dashboard": "pages.dashboard.title",
+  "/app/leads": "pages.leads.title",
+  "/app/pipeline": "pages.pipeline.title",
+  "/app/conversations": "pages.conversations.title",
+  "/app/appointments": "pages.appointments.title",
+  "/app/tasks": "pages.tasks.title",
+  "/app/automations": "nav.automations",
+  "/app/analytics": "pages.analytics.title",
+  "/app/team": "pages.team.title",
+  "/app/notifications": "pages.notifications.title",
+  "/app/audit-logs": "pages.audit.title",
+  "/app/integrations": "pages.integrations.title",
+  "/app/settings": "pages.settings.title",
+  "/app/profile": "profile.title",
 };
-
-function getPageLabel(pathname: string): string {
-  if (ROUTE_LABELS[pathname]) return ROUTE_LABELS[pathname];
-  if (pathname.startsWith("/app/leads/")) return "Lead Detail";
-  return "AI Sales Assistant";
-}
 
 export function AppLayout() {
   const { isAuthenticated, hasHydrated } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { unreadCount } = useNotifications();
+  const { t } = useTranslation();
 
   if (!hasHydrated) {
-    return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+    return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">{t("common.loading")}</div>;
   }
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  const pageLabel = getPageLabel(location.pathname);
+  const labelKey = ROUTE_LABEL_KEYS[location.pathname];
+  const pageLabel = labelKey
+    ? t(labelKey)
+    : location.pathname.startsWith("/app/leads/")
+      ? t("pages.leads.title")
+      : t("landing.brandName");
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

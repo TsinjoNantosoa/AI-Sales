@@ -32,16 +32,21 @@ export function LeadDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
 
-  const { data: lead, isLoading } = useQuery({
+  const { data: lead, isLoading, error: leadError } = useQuery({
     queryKey: queryKeys.leads.detail(id!),
-    queryFn: () => leadService.getLead(id!),
+    queryFn: () =>
+      leadService.getLead(id!, {
+        currentUserId: user?.id,
+        role: user?.role,
+      }),
     enabled: !!id,
+    retry: false,
   });
 
   const { data: notes = [] } = useQuery({
     queryKey: queryKeys.leads.notes(id!),
     queryFn: () => leadService.getNotes(id!),
-    enabled: !!id,
+    enabled: !!id && !leadError,
   });
 
   const { data: users = [] } = useQuery({
@@ -52,37 +57,49 @@ export function LeadDetailPage() {
   const { data: activities = [] } = useQuery({
     queryKey: queryKeys.activities.byLead(id!),
     queryFn: () => dashboardService.getActivities(id!),
-    enabled: !!id,
+    enabled: !!id && !leadError,
   });
 
   const { data: allConversations = [] } = useQuery({
-    queryKey: queryKeys.conversations.all,
-    queryFn: () => conversationService.getConversations(),
-    enabled: !!id,
+    queryKey: [...queryKeys.conversations.all, user?.id, user?.role],
+    queryFn: () =>
+      conversationService.getConversations({
+        currentUserId: user?.id,
+        role: user?.role,
+      }),
+    enabled: !!id && !leadError,
   });
 
   const { data: allAppointments = [] } = useQuery({
-    queryKey: queryKeys.appointments.all,
-    queryFn: () => appointmentService.getAppointments(),
-    enabled: !!id,
+    queryKey: [...queryKeys.appointments.all, user?.id, user?.role],
+    queryFn: () =>
+      appointmentService.getAppointments({
+        currentUserId: user?.id,
+        role: user?.role,
+      }),
+    enabled: !!id && !leadError,
   });
 
   const { data: allTasks = [] } = useQuery({
-    queryKey: queryKeys.tasks.all,
-    queryFn: () => taskService.getTasks(),
-    enabled: !!id,
+    queryKey: [...queryKeys.tasks.all, user?.id, user?.role],
+    queryFn: () =>
+      taskService.getTasks({
+        currentUserId: user?.id,
+        role: user?.role,
+      }),
+    enabled: !!id && !leadError,
   });
 
   const { data: emails = [] } = useQuery({
     queryKey: ["leads", "emails", id],
     queryFn: () => leadService.getEmailLogs(id!),
-    enabled: !!id,
+    enabled: !!id && !leadError,
   });
 
   const { data: workflowRuns = [] } = useQuery({
     queryKey: [...queryKeys.automations.executions, id],
     queryFn: () => automationService.getExecutions(id!),
-    enabled: !!id,
+    enabled: !!id && !leadError,
   });
 
   const addNoteMutation = useMutation({
@@ -104,7 +121,23 @@ export function LeadDetailPage() {
   });
 
   if (isLoading) return <PageLoader />;
-  if (!lead) return <div className="p-6"><p className="text-muted-foreground">Lead not found.</p></div>;
+
+  if (leadError || !lead) {
+    const forbidden = leadError instanceof Error && leadError.message === "Forbidden";
+    return (
+      <div className="p-6">
+        <p className="text-destructive font-medium mb-2">
+          {forbidden ? "Access denied" : "Lead not found"}
+        </p>
+        <p className="text-sm text-muted-foreground mb-4">
+          {forbidden
+            ? "You can only view leads assigned to you."
+            : "This lead does not exist or was removed."}
+        </p>
+        <Link to="/app/leads" className="text-primary hover:underline text-sm">Back to leads</Link>
+      </div>
+    );
+  }
 
   const assignedUser = users.find((u) => u.id === lead.assignedUserId);
   const conversations = allConversations.filter((c) => c.leadId === lead.id);

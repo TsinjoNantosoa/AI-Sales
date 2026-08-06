@@ -7,9 +7,32 @@ import {
   addMessage,
   requestHumanHandoff,
   applyQualificationAnswer,
+  persistDatabase,
 } from "@/mocks/mockRepository";
 
 const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
+
+export class ForbiddenError extends Error {
+  constructor(message = "Forbidden") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}
+
+function assertConversationAccess(
+  conv: Conversation,
+  opts?: { currentUserId?: string; role?: string }
+) {
+  if (opts?.role !== "SALES_REPRESENTATIVE" || !opts.currentUserId) return;
+  const myLeadIds = new Set(
+    getDatabase()
+      .leads.filter((l) => l.assignedUserId === opts.currentUserId)
+      .map((l) => l.id)
+  );
+  if (conv.assignedUserId !== opts.currentUserId && !myLeadIds.has(conv.leadId)) {
+    throw new ForbiddenError();
+  }
+}
 
 export const conversationService = {
   async getConversations(opts?: { currentUserId?: string; role?: string }): Promise<Conversation[]> {
@@ -31,11 +54,15 @@ export const conversationService = {
     return apiClient.get("/conversations");
   },
 
-  async getConversation(id: string): Promise<Conversation> {
+  async getConversation(
+    id: string,
+    opts?: { currentUserId?: string; role?: string }
+  ): Promise<Conversation> {
     if (USE_MOCKS) {
       await delay(150);
       const c = getDatabase().conversations.find((x) => x.id === id);
       if (!c) throw new Error("Not found");
+      assertConversationAccess(c, opts);
       return c;
     }
     return apiClient.get(`/conversations/${id}`);
@@ -91,12 +118,14 @@ export const conversationService = {
     return apiClient.post(`/conversations/${conversationId}/qualify`, { leadId, step, answer });
   },
 
-  async getAIResponse(_conversationId: string, _userMessage: string): Promise<{ message: string }> {
+  async getAIResponse(conversationId: string, userMessage: string): Promise<{ message: string }> {
     if (USE_MOCKS) {
       await delay(500);
-      return { message: "Thanks for your message. Let me continue your qualification." };
+      const reply = "Thanks for your message. Let me continue your qualification.";
+      await addMessage(conversationId, reply, "ai");
+      return { message: reply };
     }
-    return apiClient.post(`/conversations/${_conversationId}/ai-reply`, { message: _userMessage });
+    return apiClient.post(`/conversations/${conversationId}/ai-reply`, { message: userMessage });
   },
 
   async requestHandoff(conversationId: string): Promise<Conversation> {
@@ -114,7 +143,8 @@ export const conversationService = {
       const conv = db.conversations.find((c) => c.id === conversationId);
       if (!conv) throw new Error("Not found");
       conv.status = "closed";
-      return conv;
+      persistDatabase();
+      return { ...conv };
     }
     return apiClient.post(`/conversations/${conversationId}/close`);
   },

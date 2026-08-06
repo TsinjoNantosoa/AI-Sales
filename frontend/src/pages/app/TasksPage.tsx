@@ -22,8 +22,10 @@ import { cn, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import { isPast, isToday } from "date-fns";
 import { useAuthStore } from "@/stores/authStore";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export function TasksPage() {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
@@ -52,12 +54,12 @@ export function TasksPage() {
 
   const completeMutation = useMutation({
     mutationFn: taskService.completeTask,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.tasks.all }); toast.success("Task completed!"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.tasks.all }); toast.success(t("toast.taskCompleted")); },
   });
 
   const deleteMutation = useMutation({
     mutationFn: taskService.deleteTask,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.tasks.all }); toast.success("Task deleted."); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.tasks.all }); toast.success(t("toast.taskDeleted")); },
   });
 
   const createMutation = useMutation({
@@ -78,7 +80,7 @@ export function TasksPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.tasks.all });
-      toast.success("Task created.");
+      toast.success(t("toast.taskCreated"));
       setCreateOpen(false);
       setNewTask({ title: "", description: "", leadId: "", assignedUserId: user?.id ?? "u1", priority: "Medium", dueDate: "" });
     },
@@ -183,14 +185,14 @@ export function TasksPage() {
       {/* ── Header ── */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Tasks</h1>
+          <h1 className="page-title">{t("pages.tasks.title")}</h1>
           <p className="page-subtitle">
-            {tasks.filter((t) => t.status !== "Completed").length} active
+            {t("pages.tasks.subtitle", { count: tasks.filter((tk) => tk.status !== "Completed").length })}
             {overdueTasks.length > 0 && <span className="text-red-500 ml-1">· {overdueTasks.length} overdue</span>}
           </p>
         </div>
         <Button size="sm" className="gap-1.5 h-9 self-start sm:self-auto" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" /> New Task
+          <Plus className="h-4 w-4" /> {t("buttons.newTask")}
         </Button>
       </div>
 
@@ -236,9 +238,9 @@ export function TasksPage() {
             {taskList.length === 0 ? (
               <EmptyState
                 icon={CheckSquare}
-                title={value === "overdue" ? "No overdue tasks" : "No tasks here"}
-                description="All clear!"
-                action={{ label: "Create Task", onClick: () => setCreateOpen(true) }}
+                title={t("empty.tasks")}
+                description={t("empty.tasksDesc")}
+                action={{ label: t("buttons.newTask"), onClick: () => setCreateOpen(true) }}
               />
             ) : (
               <div className="space-y-2">

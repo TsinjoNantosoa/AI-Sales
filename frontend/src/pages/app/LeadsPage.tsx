@@ -24,11 +24,13 @@ import { useAuthStore } from "@/stores/authStore";
 import type { Lead, LeadStatus, LeadTemperature } from "@/types";
 import { formatCurrency, timeAgo, cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type SortField = "score" | "createdAt" | "estimatedValue" | "firstName";
 type SortDir = "asc" | "desc";
 
 export function LeadsPage() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const importRef = useRef<HTMLInputElement>(null);
@@ -67,18 +69,18 @@ export function LeadsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: leadService.deleteLead,
-    onSuccess: () => { invalidateLeads(); toast.success("Lead deleted successfully."); },
-    onError: () => toast.error("Failed to delete lead."),
+    onSuccess: () => { invalidateLeads(); toast.success(t("toast.leadDeleted")); },
+    onError: () => toast.error(t("toast.deleted")),
   });
 
   const archiveMutation = useMutation({
     mutationFn: leadService.archiveLead,
-    onSuccess: () => { invalidateLeads(); toast.success("Lead archived."); },
+    onSuccess: () => { invalidateLeads(); toast.success(t("toast.leadArchived")); },
   });
 
   const assignMutation = useMutation({
     mutationFn: ({ id, userId }: { id: string; userId: string }) => leadService.assignLead(id, userId),
-    onSuccess: () => { invalidateLeads(); toast.success("Lead assigned."); },
+    onSuccess: () => { invalidateLeads(); toast.success(t("toast.leadAssigned")); },
   });
 
   const bulkDeleteMutation = useMutation({
@@ -86,7 +88,7 @@ export function LeadsPage() {
     onSuccess: () => {
       invalidateLeads();
       setSelectedIds([]);
-      toast.success("Selected leads deleted.");
+      toast.success(t("toast.leadsDeleted"));
     },
   });
 
@@ -97,7 +99,7 @@ export function LeadsPage() {
       invalidateLeads();
       setSelectedIds([]);
       setBulkAssignUserId("");
-      toast.success("Leads assigned.");
+      toast.success(t("toast.leadsAssigned"));
     },
   });
 
@@ -105,9 +107,9 @@ export function LeadsPage() {
     mutationFn: leadService.importLeads,
     onSuccess: (result) => {
       invalidateLeads();
-      toast.success(`Imported ${result.imported.length} leads${result.rejected.length ? `, ${result.rejected.length} rejected` : ""}.`);
+      toast.success(t("toast.created") + ` (${result.imported.length})`);
     },
-    onError: () => toast.error("Import failed."),
+    onError: () => toast.error(t("toast.importFailed")),
   });
 
   const filteredLeads = useMemo(() => {
@@ -157,7 +159,7 @@ export function LeadsPage() {
     a.download = `leads-export-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(`Exported ${filteredLeads.length} leads.`);
+    toast.success(t("toast.exported", { count: filteredLeads.length }));
   };
 
   const handleImportFile = async (file: File) => {
@@ -197,8 +199,8 @@ export function LeadsPage() {
       {/* ── Header ── */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Leads</h1>
-          <p className="page-subtitle">{filteredLeads.length} leads{hasFilters ? " (filtered)" : ""}</p>
+          <h1 className="page-title">{t("pages.leads.title")}</h1>
+          <p className="page-subtitle">{t("pages.leads.subtitle", { count: filteredLeads.length })}{hasFilters ? " (filtered)" : ""}</p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <input
@@ -213,13 +215,13 @@ export function LeadsPage() {
             }}
           />
           <Button variant="outline" size="sm" className="hidden sm:flex gap-1.5 h-9" onClick={() => importRef.current?.click()}>
-            <Upload className="h-4 w-4" /> Import
+            <Upload className="h-4 w-4" /> {t("buttons.import")}
           </Button>
           <Button variant="outline" size="sm" className="hidden sm:flex gap-1.5 h-9" onClick={handleExport}>
-            <Download className="h-4 w-4" /> Export
+            <Download className="h-4 w-4" /> {t("buttons.export")}
           </Button>
           <Button size="sm" className="gap-1.5 h-9" onClick={() => { setEditLead(null); setFormOpen(true); }}>
-            <Plus className="h-4 w-4" /> Add Lead
+            <Plus className="h-4 w-4" /> {t("buttons.addLead")}
           </Button>
         </div>
       </div>
@@ -350,11 +352,11 @@ export function LeadsPage() {
                   <td colSpan={11}>
                     <EmptyState
                       icon={Users}
-                      title="No leads found"
-                      description={hasFilters ? "Try adjusting your filters." : "Add your first lead to get started."}
+                      title={t("empty.leads")}
+                      description={hasFilters ? t("empty.leadsDesc") : t("empty.leadsDesc")}
                       action={hasFilters
-                        ? { label: "Reset filters", onClick: resetFilters }
-                        : { label: "Add Lead", onClick: () => setFormOpen(true) }
+                        ? { label: t("common.reset"), onClick: resetFilters }
+                        : { label: t("buttons.addLead"), onClick: () => setFormOpen(true) }
                       }
                     />
                   </td>

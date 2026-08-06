@@ -13,8 +13,9 @@ import { cn, formatDate } from "@/lib/utils";
 import { format, addDays, startOfToday, isSameDay } from "date-fns";
 import { appointmentService } from "@/services/appointmentService";
 import { leadService } from "@/services/leadService";
-import { getGoogleCalendarUrl, getDatabase } from "@/mocks/mockRepository";
+import { getGoogleCalendarUrl } from "@/lib/calendar";
 import { DEFAULT_ASSIGNEE_ID } from "@/lib/constants";
+import { teamService } from "@/services/teamService";
 import type { Appointment, Lead } from "@/types";
 import { toast } from "sonner";
 
@@ -98,7 +99,7 @@ export function BookMeetingPage() {
         setLead(activeLead);
       }
 
-      const assignee = getDatabase().users.find((u) => u.id === (activeLead.assignedUserId || DEFAULT_ASSIGNEE_ID));
+      const assignee = await teamService.getUser(activeLead.assignedUserId || DEFAULT_ASSIGNEE_ID).catch(() => null);
       const dateStr = format(selectedDate, "yyyy-MM-dd");
       const appt = await appointmentService.createAppointment({
         leadId: activeLead.id,

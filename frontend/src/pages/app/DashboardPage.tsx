@@ -20,12 +20,14 @@ import { useAuthStore } from "@/stores/authStore";
 import { formatCurrency, formatDate, timeAgo } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { DashboardOverview, PipelineStage, SourceData, LeadTrendPoint } from "@/types";
 
 const SOURCE_COLORS = ["#3b82f6","#22c55e","#8b5cf6","#f97316","#f43f5e","#64748b","#0ea5e9"];
 const PIPELINE_COLORS = ["#94a3b8","#3b82f6","#f59e0b","#22c55e","#8b5cf6","#6366f1","#f97316","#10b981"];
 
 export function DashboardPage() {
+  const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const roleOpts = { currentUserId: user?.id, role: user?.role };
 
@@ -84,8 +86,8 @@ export function DashboardPage() {
       {/* ── Header ── */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Overview of your sales pipeline and performance</p>
+          <h1 className="page-title">{t("pages.dashboard.title")}</h1>
+          <p className="page-subtitle">{t("pages.dashboard.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 self-start sm:self-auto">
           <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse-soft" />
@@ -95,14 +97,14 @@ export function DashboardPage() {
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <KpiCard title="Total Leads" value={overview.totalLeads} change={overview.changes.totalLeads} icon={Users} iconColor="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400" tooltip="All leads across all statuses" />
-        <KpiCard title="New Leads" value={overview.newLeads} change={overview.changes.newLeads} icon={UserPlus} iconColor="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400" tooltip="Leads created in the last 7 days" />
-        <KpiCard title="Qualified" value={overview.qualifiedLeads} change={overview.changes.qualifiedLeads} icon={TrendingUp} iconColor="bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400" tooltip="Leads with score ≥ 60" />
-        <KpiCard title="Hot Leads" value={overview.hotLeads} change={overview.changes.hotLeads} icon={Flame} iconColor="bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" tooltip="Leads with score ≥ 70" />
-        <KpiCard title="Meetings" value={overview.meetingsBooked} change={overview.changes.meetingsBooked} icon={Calendar} iconColor="bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400" tooltip="Meetings booked this month" />
-        <KpiCard title="Conversion" value={`${overview.conversionRate}%`} change={overview.changes.conversionRate} icon={Target} iconColor="bg-teal-50 text-teal-600 dark:bg-teal-900/20 dark:text-teal-400" tooltip="Leads converted to won deals" />
-        <KpiCard title="Pipeline Value" value={formatCurrency(overview.pipelineValue)} change={overview.changes.pipelineValue} icon={DollarSign} iconColor="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400" tooltip="Total estimated pipeline value" />
-        <KpiCard title="Avg. Response" value={overview.avgResponseTime} icon={Clock} iconColor="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" tooltip="Average AI first-response time" />
+        <KpiCard title={t("dashboard.totalLeads")} value={overview.totalLeads} change={overview.changes.totalLeads} icon={Users} iconColor="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400" tooltip="All leads across all statuses" />
+        <KpiCard title={t("dashboard.newLeads")} value={overview.newLeads} change={overview.changes.newLeads} icon={UserPlus} iconColor="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400" tooltip="Leads created in the last 7 days" />
+        <KpiCard title={t("dashboard.qualifiedLeads")} value={overview.qualifiedLeads} change={overview.changes.qualifiedLeads} icon={TrendingUp} iconColor="bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400" tooltip="Leads with score ≥ 60" />
+        <KpiCard title={t("dashboard.hotLeads")} value={overview.hotLeads} change={overview.changes.hotLeads} icon={Flame} iconColor="bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" tooltip="Leads with score ≥ 70" />
+        <KpiCard title={t("dashboard.meetingsBooked")} value={overview.meetingsBooked} change={overview.changes.meetingsBooked} icon={Calendar} iconColor="bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400" tooltip="Meetings booked this month" />
+        <KpiCard title={t("dashboard.conversionRate")} value={`${overview.conversionRate}%`} change={overview.changes.conversionRate} icon={Target} iconColor="bg-teal-50 text-teal-600 dark:bg-teal-900/20 dark:text-teal-400" tooltip="Leads converted to won deals" />
+        <KpiCard title={t("dashboard.pipelineValue")} value={formatCurrency(overview.pipelineValue)} change={overview.changes.pipelineValue} icon={DollarSign} iconColor="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400" tooltip="Total estimated pipeline value" />
+        <KpiCard title={t("dashboard.avgResponseTime")} value={overview.avgResponseTime} icon={Clock} iconColor="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" tooltip="Average AI first-response time" />
       </div>
 
       {/* ── Charts Row 1 ── */}

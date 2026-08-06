@@ -63,11 +63,18 @@ export const leadService = {
     });
   },
 
-  async getLead(id: string): Promise<Lead> {
+  async getLead(id: string, opts?: { currentUserId?: string; role?: string }): Promise<Lead> {
     if (USE_MOCKS) {
       await delay(150);
       const lead = getDatabase().leads.find((l) => l.id === id);
       if (!lead) throw new Error("Lead not found");
+      if (
+        opts?.role === "SALES_REPRESENTATIVE" &&
+        opts.currentUserId &&
+        lead.assignedUserId !== opts.currentUserId
+      ) {
+        throw new Error("Forbidden");
+      }
       return lead;
     }
     return apiClient.get(`/leads/${id}`);

@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { UserCircle, Camera, Bell, Lock, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +12,12 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserAvatar } from "@/components/common/Avatar";
 import { useAuthStore } from "@/stores/authStore";
+import { useTranslation } from "@/hooks/useTranslation";
+import { teamService } from "@/services/teamService";
+import { authService } from "@/services/authService";
+import { settingsService } from "@/services/settingsService";
+import { integrationService } from "@/services/integrationService";
+import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 
 const profileSchema = z.object({
@@ -30,7 +38,35 @@ const pwSchema = z.object({
 type PwData = z.infer<typeof pwSchema>;
 
 export function ProfilePage() {
+  const { t } = useTranslation();
   const { user, updateUser } = useAuthStore();
+  const qc = useQueryClient();
+  const [notifPrefs, setNotifPrefs] = useState({
+    emailEnabled: true,
+    inAppEnabled: true,
+    hotLeadAlerts: true,
+    meetingReminders: true,
+  });
+
+  const { data: settings } = useQuery({
+    queryKey: queryKeys.settings.all,
+    queryFn: () => settingsService.getSettings(),
+  });
+
+  const { data: integrations = [] } = useQuery({
+    queryKey: queryKeys.integrations.all,
+    queryFn: () => integrationService.getIntegrations(),
+  });
+
+  useEffect(() => {
+    if (!settings?.notifications) return;
+    setNotifPrefs({ ...settings.notifications });
+  }, [settings]);
+
+  const googleCalendar = integrations.find(
+    (i) => i.id === "int1" || i.name.toLowerCase().includes("google calendar")
+  );
+  const calendarConnected = googleCalendar?.status === "connected";
 
   const profileForm = useForm<ProfileData>({
     resolver: zodResolver(profileSchema),
@@ -45,35 +81,80 @@ export function ProfilePage() {
 
   const pwForm = useForm<PwData>({ resolver: zodResolver(pwSchema) });
 
-  const onProfileSave = (data: ProfileData) => {
-    updateUser({ firstName: data.firstName, lastName: data.lastName, language: data.language as "en" | "fr", timezone: data.timezone });
-    toast.success("Profile updated successfully.");
+  const onProfileSave = async (data: ProfileData) => {
+    if (!user) return;
+    updateUser({
+      firstName: data.firstName,
+      lastName: data.lastName,
+      language: data.language as "en" | "fr",
+      timezone: data.timezone,
+    });
+    await teamService.updateUser(user.id, {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      language: data.language as "en" | "fr",
+      timezone: data.timezone,
+      email: data.email,
+    });
+    qc.invalidateQueries({ queryKey: queryKeys.team.all });
+    toast.success(t("toast.profileUpdated"));
   };
 
   const onPasswordChange = async (data: PwData) => {
-    void data;
-    await new Promise((r) => setTimeout(r, 500));
-    toast.success("Password changed successfully.");
-    pwForm.reset();
+    if (!user?.email) return;
+    try {
+      const token = `mock-reset-${btoa(user.email)}`;
+      await authService.resetPassword(token, data.newPassword);
+      toast.success(t("toast.passwordChanged"));
+      pwForm.reset();
+    } catch {
+      toast.error(t("toast.accessDenied"));
+    }
+  };
+
+  const saveNotifMutation = useMutation({
+    mutationFn: () => settingsService.updateSettings({ notifications: notifPrefs }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.settings.all });
+      toast.success(t("toast.notificationsSaved"));
+    },
+    onError: () => toast.error(t("toast.settingsSaveFailed")),
+  });
+
+  const connectCalendar = async () => {
+    try {
+      if (googleCalendar) {
+        await integrationService.connect(googleCalendar.id);
+        qc.invalidateQueries({ queryKey: queryKeys.integrations.all });
+        if (user) {
+          await teamService.updateUser(user.id, { calendarConnected: true });
+        }
+        toast.success(t("toast.calendarConnected"));
+      } else {
+        toast.info(t("toast.calendarConnected"));
+        await settingsService.updateSettings({});
+      }
+    } catch {
+      toast.error(t("toast.accessDenied"));
+    }
   };
 
   if (!user) return null;
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-foreground mb-6">My Profile</h1>
+      <h1 className="text-2xl font-bold text-foreground mb-6">{t("profile.title")}</h1>
 
       <Tabs defaultValue="profile">
         <TabsList className="mb-6">
-          <TabsTrigger value="profile" className="gap-2"><UserCircle className="h-4 w-4" />Profile</TabsTrigger>
-          <TabsTrigger value="password" className="gap-2"><Lock className="h-4 w-4" />Password</TabsTrigger>
-          <TabsTrigger value="notifications" className="gap-2"><Bell className="h-4 w-4" />Notifications</TabsTrigger>
-          <TabsTrigger value="calendar" className="gap-2"><Calendar className="h-4 w-4" />Calendar</TabsTrigger>
+          <TabsTrigger value="profile" className="gap-2"><UserCircle className="h-4 w-4" />{t("profile.title")}</TabsTrigger>
+          <TabsTrigger value="password" className="gap-2"><Lock className="h-4 w-4" />{t("profile.password")}</TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-2"><Bell className="h-4 w-4" />{t("profile.notifications")}</TabsTrigger>
+          <TabsTrigger value="calendar" className="gap-2"><Calendar className="h-4 w-4" />{t("profile.calendar")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
           <div className="bg-card border border-border rounded-xl p-6">
-            {/* Avatar */}
             <div className="flex items-center gap-4 mb-6 pb-6 border-b border-border">
               <div className="relative">
                 <UserAvatar firstName={user.firstName} lastName={user.lastName} id={user.id} size="lg" />
@@ -101,16 +182,16 @@ export function ProfilePage() {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Email</Label>
+                <Label>{t("common.email")}</Label>
                 <Input type="email" {...profileForm.register("email")} />
               </div>
               <div className="space-y-1.5">
-                <Label>Phone</Label>
+                <Label>{t("common.phone")}</Label>
                 <Input type="tel" {...profileForm.register("phone")} placeholder="+1 555 000 0000" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Language</Label>
+                  <Label>{t("common.language")}</Label>
                   <Select value={profileForm.watch("language")} onValueChange={(v) => profileForm.setValue("language", v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="en">English</SelectItem><SelectItem value="fr">Français</SelectItem></SelectContent>
@@ -131,7 +212,7 @@ export function ProfilePage() {
               <div className="p-3 rounded-lg bg-muted/50 border border-border">
                 <p className="text-xs text-muted-foreground"><strong>Role:</strong> {user.role.replace(/_/g, " ")} — Contact your administrator to change your role.</p>
               </div>
-              <Button type="submit">Save Profile</Button>
+              <Button type="submit">{t("profile.saveProfile")}</Button>
             </form>
           </div>
         </TabsContent>
@@ -145,16 +226,16 @@ export function ProfilePage() {
                 {pwForm.formState.errors.currentPassword && <p className="text-xs text-destructive">{pwForm.formState.errors.currentPassword.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label>New Password</Label>
+                <Label>{t("auth.newPassword")}</Label>
                 <Input type="password" {...pwForm.register("newPassword")} placeholder="Minimum 8 characters" />
                 {pwForm.formState.errors.newPassword && <p className="text-xs text-destructive">{pwForm.formState.errors.newPassword.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label>Confirm Password</Label>
+                <Label>{t("auth.confirmPassword")}</Label>
                 <Input type="password" {...pwForm.register("confirmPassword")} placeholder="Repeat new password" />
                 {pwForm.formState.errors.confirmPassword && <p className="text-xs text-destructive">{pwForm.formState.errors.confirmPassword.message}</p>}
               </div>
-              <Button type="submit">Change Password</Button>
+              <Button type="submit">{t("profile.changePassword")}</Button>
             </form>
           </div>
         </TabsContent>
@@ -162,22 +243,25 @@ export function ProfilePage() {
         <TabsContent value="notifications">
           <div className="bg-card border border-border rounded-xl p-6 space-y-4">
             <h3 className="font-semibold">My Notification Preferences</h3>
-            {[
-              { label: "New lead assigned to me" },
-              { label: "Meeting reminders" },
-              { label: "Task due soon" },
-              { label: "Workflow failures" },
-              { label: "Hot lead alerts" },
-            ].map((n) => (
-              <div key={n.label} className="flex items-center justify-between">
+            {(
+              [
+                { key: "hotLeadAlerts" as const, label: "Hot lead alerts" },
+                { key: "meetingReminders" as const, label: "Meeting reminders" },
+                { key: "emailEnabled" as const, label: "Email notifications" },
+                { key: "inAppEnabled" as const, label: "In-app notifications" },
+              ] as const
+            ).map((n) => (
+              <div key={n.key} className="flex items-center justify-between">
                 <p className="text-sm">{n.label}</p>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1.5"><Switch defaultChecked /><span className="text-xs text-muted-foreground">Email</span></div>
-                  <div className="flex items-center gap-1.5"><Switch defaultChecked /><span className="text-xs text-muted-foreground">In-app</span></div>
-                </div>
+                <Switch
+                  checked={notifPrefs[n.key]}
+                  onCheckedChange={(v) => setNotifPrefs((prev) => ({ ...prev, [n.key]: v }))}
+                />
               </div>
             ))}
-            <Button onClick={() => toast.success("Notification preferences saved.")}>Save Preferences</Button>
+            <Button onClick={() => saveNotifMutation.mutate()} disabled={saveNotifMutation.isPending}>
+              {t("buttons.save")}
+            </Button>
           </div>
         </TabsContent>
 
@@ -190,16 +274,16 @@ export function ProfilePage() {
                 <div>
                   <p className="font-medium text-sm">Google Calendar</p>
                   <p className="text-xs text-muted-foreground">
-                    {user ? "Not connected" : "Reconnect your calendar"}
+                    {calendarConnected ? t("profile.connected") : t("profile.notConnected")}
                   </p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={() => toast.success("Google Calendar connected! (Demo mode)")}>
-                Connect
+              <Button variant="outline" size="sm" onClick={connectCalendar}>
+                {calendarConnected ? t("buttons.sync") : t("buttons.connect")}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Connect your Google Calendar to sync meetings and receive availability-based booking links.
+              {t("profile.connectCalendarHint")}
             </p>
           </div>
         </TabsContent>

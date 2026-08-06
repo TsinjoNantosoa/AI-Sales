@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Calendar, List, Settings2, Video, Trash2, Check } from "lucide-react";
+import { Plus, Calendar, List, Settings2, Video, Trash2, Check, CalendarPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,20 +14,29 @@ import { PageLoader } from "@/components/common/LoadingSpinner";
 import { appointmentService } from "@/services/appointmentService";
 import { leadService } from "@/services/leadService";
 import { teamService } from "@/services/teamService";
+import { settingsService } from "@/services/settingsService";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuthStore } from "@/stores/authStore";
-import type { Appointment } from "@/types";
+import { useTranslation } from "@/hooks/useTranslation";
+import { getGoogleCalendarUrl } from "@/lib/calendar";
+import type { Appointment, Settings } from "@/types";
 import { cn, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, startOfToday, addDays, addWeeks } from "date-fns";
 
+type DayAvailability = Settings["availability"]["days"][number];
+
 export function AppointmentsPage() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [calendarDate, setCalendarDate] = useState(startOfToday());
   const [newAppt, setNewAppt] = useState({ leadId: "", assignedUserId: "", date: "", time: "", duration: 30, type: "30-minute discovery call", notes: "", googleMeet: true });
+  const [availDays, setAvailDays] = useState<DayAvailability[]>([]);
+  const [availTimezone, setAvailTimezone] = useState("America/New_York");
+  const [availBuffer, setAvailBuffer] = useState(15);
 
   const roleOpts = { currentUserId: user?.id, role: user?.role };
 
@@ -46,9 +55,21 @@ export function AppointmentsPage() {
     queryFn: () => teamService.getUsers(),
   });
 
+  const { data: settings } = useQuery({
+    queryKey: queryKeys.settings.all,
+    queryFn: () => settingsService.getSettings(),
+  });
+
+  useEffect(() => {
+    if (!settings?.availability) return;
+    setAvailDays(settings.availability.days.map((d) => ({ ...d })));
+    setAvailTimezone(settings.availability.timezone);
+    setAvailBuffer(settings.availability.bufferMinutes);
+  }, [settings]);
+
   const deleteMutation = useMutation({
     mutationFn: appointmentService.deleteAppointment,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.appointments.all }); toast.success("Appointment cancelled."); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.appointments.all }); toast.success(t("toast.appointmentCancelled")); },
   });
 
   const createMutation = useMutation({
@@ -67,13 +88,33 @@ export function AppointmentsPage() {
         type: data.type as Appointment["type"],
       });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.appointments.all }); toast.success("Appointment created successfully."); setCreateOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.appointments.all }); toast.success(t("toast.appointmentCreated")); setCreateOpen(false); },
   });
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: Appointment["status"] }) => appointmentService.updateAppointment(id, { status }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.appointments.all }); toast.success("Status updated."); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.appointments.all }); toast.success(t("toast.statusUpdated")); },
   });
+
+  const saveAvailabilityMutation = useMutation({
+    mutationFn: () =>
+      settingsService.updateSettings({
+        availability: {
+          timezone: availTimezone,
+          bufferMinutes: availBuffer,
+          days: availDays,
+        },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.settings.all });
+      toast.success(t("toast.availabilitySaved"));
+    },
+    onError: () => toast.error(t("toast.settingsSaveFailed")),
+  });
+
+  const updateDay = (day: string, patch: Partial<DayAvailability>) => {
+    setAvailDays((prev) => prev.map((d) => (d.day === day ? { ...d, ...patch } : d)));
+  };
 
   if (isLoading) return <PageLoader />;
 
@@ -90,15 +131,27 @@ export function AppointmentsPage() {
     "No Show": "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400",
   }[status]);
 
+  const openCalendar = (appt: Appointment) => {
+    const url = getGoogleCalendarUrl({
+      title: `${appt.type} — ${appt.leadName}`,
+      date: appt.date,
+      time: appt.time,
+      duration: appt.duration,
+      details: appt.notes || appt.meetingLink,
+      location: appt.meetingLink,
+    });
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Appointments</h1>
-          <p className="text-sm text-muted-foreground">{appointments.length} total appointments</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("pages.appointments.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("pages.appointments.subtitle", { count: appointments.length })}</p>
         </div>
         <Button size="sm" className="gap-2" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" /> New Appointment
+          <Plus className="h-4 w-4" /> {t("buttons.newAppointment")}
         </Button>
       </div>
 
@@ -107,8 +160,8 @@ export function AppointmentsPage() {
           <TabsTrigger value="month" className="gap-2"><Calendar className="h-4 w-4" />Month</TabsTrigger>
           <TabsTrigger value="week" className="gap-2">Week</TabsTrigger>
           <TabsTrigger value="day" className="gap-2">Day</TabsTrigger>
-          <TabsTrigger value="list" className="gap-2"><List className="h-4 w-4" />List</TabsTrigger>
-          <TabsTrigger value="availability" className="gap-2"><Settings2 className="h-4 w-4" />Availability</TabsTrigger>
+          <TabsTrigger value="list" className="gap-2"><List className="h-4 w-4" />{t("appointments.list")}</TabsTrigger>
+          <TabsTrigger value="availability" className="gap-2"><Settings2 className="h-4 w-4" />{t("appointments.availability")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="month">
@@ -224,7 +277,7 @@ export function AppointmentsPage() {
                 </thead>
                 <tbody>
                   {appointments.length === 0 ? (
-                    <tr><td colSpan={8}><EmptyState icon={Calendar} title="No appointments" description="Create your first appointment to get started." action={{ label: "New Appointment", onClick: () => setCreateOpen(true) }} /></td></tr>
+                    <tr><td colSpan={8}><EmptyState icon={Calendar} title={t("empty.appointments")} description={t("empty.appointmentsDesc")} action={{ label: t("buttons.newAppointment"), onClick: () => setCreateOpen(true) }} /></td></tr>
                   ) : appointments.map((appt) => (
                     <tr key={appt.id} className="border-b border-border hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
@@ -249,10 +302,25 @@ export function AppointmentsPage() {
                             </Button>
                           )}
                           {appt.meetingLink && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => toast.info("Opening Google Meet...")}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-primary"
+                              title={t("appointments.googleMeet")}
+                              onClick={() => window.open(appt.meetingLink, "_blank", "noopener,noreferrer")}
+                            >
                               <Video className="h-4 w-4" />
                             </Button>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground"
+                            title={t("buttons.addToCalendar")}
+                            onClick={() => openCalendar(appt)}
+                          >
+                            <CalendarPlus className="h-4 w-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(appt.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -271,27 +339,30 @@ export function AppointmentsPage() {
             <div className="bg-card border border-border rounded-xl p-5">
               <h3 className="font-semibold mb-4">Working Hours</h3>
               <div className="space-y-3">
-                {["Monday","Tuesday","Wednesday","Thursday","Friday"].map((day) => (
-                  <div key={day} className="flex items-center justify-between">
+                {(availDays.length ? availDays : []).map((day) => (
+                  <div key={day.day} className={cn("flex items-center justify-between", !day.enabled && "opacity-50")}>
                     <div className="flex items-center gap-3">
-                      <Switch defaultChecked />
-                      <span className="text-sm">{day}</span>
+                      <Switch
+                        checked={day.enabled}
+                        onCheckedChange={(v) => updateDay(day.day, { enabled: v })}
+                      />
+                      <span className="text-sm">{day.day}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Select defaultValue="09:00"><SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
-                        <SelectContent>{["08:00","09:00","10:00"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                      </Select>
-                      <span className="text-muted-foreground">to</span>
-                      <Select defaultValue="18:00"><SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
-                        <SelectContent>{["17:00","18:00","19:00"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                ))}
-                {["Saturday","Sunday"].map((day) => (
-                  <div key={day} className="flex items-center justify-between opacity-50">
-                    <div className="flex items-center gap-3"><Switch /><span className="text-sm">{day}</span></div>
-                    <span className="text-xs text-muted-foreground">Not available</span>
+                    {day.enabled ? (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Select value={day.start} onValueChange={(v) => updateDay(day.day, { start: v })}>
+                          <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
+                          <SelectContent>{["08:00","09:00","10:00"].map((tm) => <SelectItem key={tm} value={tm}>{tm}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <span className="text-muted-foreground">to</span>
+                        <Select value={day.end} onValueChange={(v) => updateDay(day.day, { end: v })}>
+                          <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
+                          <SelectContent>{["13:00","17:00","18:00","19:00"].map((tm) => <SelectItem key={tm} value={tm}>{tm}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Not available</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -300,40 +371,31 @@ export function AppointmentsPage() {
               <h3 className="font-semibold mb-4">Meeting Settings</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label>Default Duration</Label>
-                  <Select defaultValue="30">
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{["15","30","45","60"].map((d) => <SelectItem key={d} value={d}>{d} minutes</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
                   <Label>Buffer Between Meetings</Label>
-                  <Select defaultValue="15">
+                  <Select value={String(availBuffer)} onValueChange={(v) => setAvailBuffer(Number(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{["0","10","15","30"].map((d) => <SelectItem key={d} value={d}>{d || "None"} {d ? "minutes" : ""}</SelectItem>)}</SelectContent>
+                    <SelectContent>{["0","10","15","30"].map((d) => <SelectItem key={d} value={d}>{d === "0" ? "None" : `${d} minutes`}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Timezone</Label>
-                  <Select defaultValue="America/New_York"><SelectTrigger><SelectValue /></SelectTrigger>
+                  <Label>{t("appointments.timezone")}</Label>
+                  <Select value={availTimezone} onValueChange={setAvailTimezone}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>{["America/New_York","America/Chicago","America/Los_Angeles","Europe/London","Europe/Paris"].map((tz) => <SelectItem key={tz} value={tz}>{tz}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-center justify-between pt-6">
-                  <Label>Google Meet</Label>
-                  <Switch defaultChecked />
-                </div>
               </div>
-              <Button className="mt-4" onClick={() => toast.success("Availability settings saved!")}>Save Settings</Button>
+              <Button className="mt-4" onClick={() => saveAvailabilityMutation.mutate()} disabled={saveAvailabilityMutation.isPending || availDays.length === 0}>
+                {t("buttons.saveSettings")}
+              </Button>
             </div>
           </div>
         </TabsContent>
       </Tabs>
 
-      {/* Create Appointment Modal */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>New Appointment</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("buttons.newAppointment")}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>Lead *</Label>
@@ -364,17 +426,17 @@ export function AppointmentsPage() {
               <Select defaultValue="30-minute discovery call" onValueChange={(v) => setNewAppt({ ...newAppt, type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {["15-minute introduction","30-minute discovery call","60-minute technical consultation"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  {["15-minute introduction","30-minute discovery call","60-minute technical consultation"].map((tm) => <SelectItem key={tm} value={tm}>{tm}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex items-center justify-between">
-              <Label>Google Meet</Label>
+              <Label>{t("appointments.googleMeet")}</Label>
               <Switch checked={newAppt.googleMeet} onCheckedChange={(v) => setNewAppt({ ...newAppt, googleMeet: v })} />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-              <Button onClick={() => createMutation.mutate(newAppt)} disabled={!newAppt.leadId || !newAppt.date || !newAppt.time}>Create</Button>
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>{t("buttons.cancel")}</Button>
+              <Button onClick={() => createMutation.mutate(newAppt)} disabled={!newAppt.leadId || !newAppt.date || !newAppt.time}>{t("common.create")}</Button>
             </div>
           </div>
         </DialogContent>

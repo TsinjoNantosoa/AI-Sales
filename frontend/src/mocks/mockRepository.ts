@@ -102,6 +102,19 @@ const DEFAULT_SETTINGS: Settings = {
     requireMfa: false,
     passwordMinLength: 8,
   },
+  availability: {
+    timezone: "America/New_York",
+    bufferMinutes: 15,
+    days: [
+      { day: "Monday", enabled: true, start: "09:00", end: "18:00" },
+      { day: "Tuesday", enabled: true, start: "09:00", end: "18:00" },
+      { day: "Wednesday", enabled: true, start: "09:00", end: "18:00" },
+      { day: "Thursday", enabled: true, start: "09:00", end: "18:00" },
+      { day: "Friday", enabled: true, start: "09:00", end: "18:00" },
+      { day: "Saturday", enabled: false, start: "09:00", end: "13:00" },
+      { day: "Sunday", enabled: false, start: "09:00", end: "13:00" },
+    ],
+  },
 };
 
 const DEFAULT_INTEGRATIONS: Integration[] = [
@@ -317,7 +330,23 @@ export function getDatabase(): MockDatabase {
         db = {
           ...createSeedDatabase(),
           ...parsed,
-          settings: { ...DEFAULT_SETTINGS, ...parsed.settings },
+          settings: {
+            ...DEFAULT_SETTINGS,
+            ...parsed.settings,
+            general: { ...DEFAULT_SETTINGS.general, ...parsed.settings?.general },
+            leadManagement: { ...DEFAULT_SETTINGS.leadManagement, ...parsed.settings?.leadManagement },
+            leadScoring: { ...DEFAULT_SETTINGS.leadScoring, ...parsed.settings?.leadScoring },
+            aiAssistant: { ...DEFAULT_SETTINGS.aiAssistant, ...parsed.settings?.aiAssistant },
+            followUps: { ...DEFAULT_SETTINGS.followUps, ...parsed.settings?.followUps },
+            emailTemplates: { ...DEFAULT_SETTINGS.emailTemplates, ...parsed.settings?.emailTemplates },
+            notifications: { ...DEFAULT_SETTINGS.notifications, ...parsed.settings?.notifications },
+            security: { ...DEFAULT_SETTINGS.security, ...parsed.settings?.security },
+            availability: {
+              ...DEFAULT_SETTINGS.availability,
+              ...parsed.settings?.availability,
+              days: parsed.settings?.availability?.days ?? DEFAULT_SETTINGS.availability.days,
+            },
+          },
         };
         return db;
       }
@@ -347,6 +376,11 @@ function mutate(updater: (draft: MockDatabase) => void) {
   updater(draft);
   persist();
   return draft;
+}
+
+/** Force-persist current in-memory database (for service-level mutations). */
+export function persistDatabase(): void {
+  persist();
 }
 
 export function createLead(
@@ -709,6 +743,11 @@ export function updateSettings(data: Partial<Settings>): Settings {
       emailTemplates: { ...d.settings.emailTemplates, ...data.emailTemplates },
       notifications: { ...d.settings.notifications, ...data.notifications },
       security: { ...d.settings.security, ...data.security },
+      availability: {
+        ...d.settings.availability,
+        ...data.availability,
+        days: data.availability?.days ?? d.settings.availability?.days ?? DEFAULT_SETTINGS.availability.days,
+      },
     };
     settings = d.settings;
   });
@@ -994,28 +1033,7 @@ export function applyQualificationAnswer(
   return { lead: updated, score, temperature, becameHot };
 }
 
-export function getGoogleCalendarUrl(appt: {
-  title: string;
-  date: string;
-  time: string;
-  duration: number;
-  details?: string;
-  location?: string;
-}): string {
-  const [h, m] = appt.time.split(":").map(Number);
-  const start = new Date(`${appt.date}T00:00:00`);
-  start.setHours(h, m, 0, 0);
-  const end = new Date(start.getTime() + appt.duration * 60_000);
-  const fmt = (d: Date) =>
-    d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-  const url = new URL("https://calendar.google.com/calendar/render");
-  url.searchParams.set("action", "TEMPLATE");
-  url.searchParams.set("text", appt.title);
-  url.searchParams.set("dates", `${fmt(start)}/${fmt(end)}`);
-  if (appt.details) url.searchParams.set("details", appt.details);
-  if (appt.location) url.searchParams.set("location", appt.location);
-  return url.toString();
-}
+export { getGoogleCalendarUrl } from "@/lib/calendar";
 
 // silence unused daysFromNow if tree-shaken poorly
 void daysFromNow;

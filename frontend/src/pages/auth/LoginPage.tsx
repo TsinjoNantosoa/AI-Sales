@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { authService } from "@/services/authService";
 import { useAuthStore } from "@/stores/authStore";
+import { useTranslation } from "@/hooks/useTranslation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -21,13 +22,14 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 const DEMO_ACCOUNTS = [
-  { label: "Admin", email: "admin@aisales.demo", password: "Demo123!", role: "Full access" },
-  { label: "Sales Manager", email: "manager@aisales.demo", password: "Demo123!", role: "Team management" },
-  { label: "Sales Rep", email: "sales@aisales.demo", password: "Demo123!", role: "Own leads only" },
+  { labelKey: "auth.admin" as const, email: "admin@aisales.demo", password: "Demo123!", role: "Full access" },
+  { labelKey: "auth.salesManager" as const, email: "manager@aisales.demo", password: "Demo123!", role: "Team management" },
+  { labelKey: "auth.salesRep" as const, email: "sales@aisales.demo", password: "Demo123!", role: "Own leads only" },
 ];
 
 export function LoginPage() {
   const { login } = useAuthStore();
+  const { t } = useTranslation();
   const [showPassword, setShowPassword] = useState(false);
   const [showDemos, setShowDemos] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -43,9 +45,9 @@ export function LoginPage() {
     try {
       const result = await authService.login(data.email, data.password);
       login(result.user, result.token);
-      toast.success(`Welcome back, ${result.user.firstName}!`);
+      toast.success(t("toast.welcomeBack", { name: result.user.firstName }));
     } catch {
-      setError("Invalid email or password. Try a demo account below.");
+      setError(t("auth.invalidCredentials"));
     } finally {
       setIsLoading(false);
     }
@@ -59,8 +61,8 @@ export function LoginPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
-        <p className="text-sm text-muted-foreground mt-1">Sign in to your account to continue</p>
+        <h1 className="text-2xl font-bold text-foreground">{t("auth.welcomeBack")}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t("auth.signInSubtitle")}</p>
       </div>
 
       {error && (
@@ -72,7 +74,7 @@ export function LoginPage() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t("auth.email")}</Label>
           <Input
             id="email"
             type="email"
@@ -85,9 +87,9 @@ export function LoginPage() {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("auth.password")}</Label>
             <Link to="/forgot-password" className="text-xs text-primary hover:underline">
-              Forgot password?
+              {t("auth.forgotPassword")}
             </Link>
           </div>
           <div className="relative">
@@ -114,23 +116,22 @@ export function LoginPage() {
         <div className="flex items-center gap-2">
           <Checkbox id="rememberMe" onCheckedChange={(v) => setValue("rememberMe", v === true)} />
           <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
-            Remember me for 30 days
+            {t("auth.rememberMeDays")}
           </Label>
         </div>
 
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Signing in...</> : "Sign In"}
+          {isLoading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("auth.signingIn")}</> : t("auth.signIn")}
         </Button>
       </form>
 
-      {/* Demo Accounts */}
       <div className="mt-6">
         <button
           type="button"
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full justify-between py-2 border-t border-border"
           onClick={() => setShowDemos(!showDemos)}
         >
-          <span className="font-medium">Demo accounts</span>
+          <span className="font-medium">{t("auth.demoAccounts")}</span>
           {showDemos ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
         {showDemos && (
@@ -143,7 +144,7 @@ export function LoginPage() {
                 className="w-full flex items-center justify-between p-3 rounded-lg border border-border bg-muted/50 hover:bg-accent text-left transition-colors"
               >
                 <div>
-                  <p className="text-sm font-medium text-foreground">{acc.label}</p>
+                  <p className="text-sm font-medium text-foreground">{t(acc.labelKey)}</p>
                   <p className="text-xs text-muted-foreground">{acc.email}</p>
                 </div>
                 <span className="text-xs text-muted-foreground bg-background px-2 py-0.5 rounded border">{acc.role}</span>

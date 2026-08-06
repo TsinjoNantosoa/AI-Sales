@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/hooks/useTranslation";
 
 const FEATURES = [
   { icon: Cpu, title: "AI Lead Qualification", desc: "Automatically qualify prospects using conversational AI — gathering budget, urgency, and fit in seconds.", color: "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400" },
@@ -41,6 +42,8 @@ const STATS = [
 ];
 
 export function LandingPage() {
+  const { t } = useTranslation();
+
   return (
     <div className="min-h-screen bg-background">
 
@@ -51,19 +54,19 @@ export function LandingPage() {
             <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/30">
               <Bot className="h-4 w-4 text-white" />
             </div>
-            <span className="text-base font-bold text-foreground">AI Sales Assistant</span>
+            <span className="text-base font-bold text-foreground">{t("landing.brandName")}</span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
-            <a href="#features" className="hover:text-foreground transition-colors">Features</a>
-            <a href="#how-it-works" className="hover:text-foreground transition-colors">How It Works</a>
-            <a href="#integrations" className="hover:text-foreground transition-colors">Integrations</a>
+            <a href="#features" className="hover:text-foreground transition-colors">{t("landing.features")}</a>
+            <a href="#how-it-works" className="hover:text-foreground transition-colors">{t("landing.howItWorks")}</a>
+            <a href="#integrations" className="hover:text-foreground transition-colors">{t("landing.integrations")}</a>
           </div>
           <div className="flex items-center gap-2">
             <Link to="/login">
-              <Button variant="ghost" size="sm" className="hidden sm:flex">Sign In</Button>
+              <Button variant="ghost" size="sm" className="hidden sm:flex">{t("landing.signIn")}</Button>
             </Link>
             <Link to="/request-demo">
-              <Button size="sm" className="gap-1.5">Request Demo <ArrowRight className="h-3.5 w-3.5" /></Button>
+              <Button size="sm" className="gap-1.5">{t("landing.requestDemo")} <ArrowRight className="h-3.5 w-3.5" /></Button>
             </Link>
           </div>
         </div>
@@ -83,25 +86,22 @@ export function LandingPage() {
           </div>
 
           <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold leading-tight mb-4 sm:mb-6">
-            Convert More Leads with an
-            <span className="block mt-1 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">
-              AI-Powered Sales Assistant
-            </span>
+            {t("landing.heroTitle")}
           </h1>
 
           <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto mb-8 sm:mb-10 px-4">
-            Qualify prospects automatically, automate follow-ups, and book meetings — all in one platform. Let AI handle the routine so your team can focus on closing.
+            {t("landing.heroSubtitle")}
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4">
             <Link to="/request-demo" className="w-full sm:w-auto">
               <Button size="lg" className="w-full sm:w-auto text-base px-6 sm:px-8 bg-white text-slate-900 hover:bg-slate-100 font-semibold gap-2">
-                Request a Demo <ArrowRight className="h-4 w-4" />
+                {t("landing.requestDemo")} <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
             <Link to="/login" className="w-full sm:w-auto">
               <Button size="lg" variant="outline" className="w-full sm:w-auto text-base px-6 sm:px-8 border-white/30 text-white hover:bg-white/10 gap-2">
-                <Bot className="h-4 w-4" /> View Live Demo
+                <Bot className="h-4 w-4" /> {t("landing.viewLiveDemo")}
               </Button>
             </Link>
           </div>

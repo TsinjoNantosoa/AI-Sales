@@ -1,7 +1,12 @@
 import type { Notification } from "@/types";
 import { USE_MOCKS } from "@/lib/constants";
 import { apiClient } from "@/lib/apiClient";
-import { getDatabase, markNotificationRead, createNotification } from "@/mocks/mockRepository";
+import {
+  getDatabase,
+  markNotificationRead,
+  createNotification,
+  persistDatabase,
+} from "@/mocks/mockRepository";
 
 const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 
@@ -28,6 +33,7 @@ export const notificationService = {
       getDatabase().notifications.forEach((n) => {
         n.read = true;
       });
+      persistDatabase();
       return;
     }
     await apiClient.post("/notifications/read-all");
@@ -38,6 +44,7 @@ export const notificationService = {
       await delay(100);
       const db = getDatabase();
       db.notifications = db.notifications.filter((n) => n.id !== id);
+      persistDatabase();
       return;
     }
     await apiClient.delete(`/notifications/${id}`);

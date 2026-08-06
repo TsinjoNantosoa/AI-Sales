@@ -13,6 +13,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import type { Integration } from "@/types";
 import { toast } from "sonner";
 import { Settings, Link2, Unlink, RefreshCw, PlugZap } from "lucide-react";
+import { useTranslation } from "@/hooks/useTranslation";
 
 const MASK = "••••••••••••••";
 
@@ -59,6 +60,7 @@ function sanitizeConfig(config: Record<string, string>): Record<string, string> 
 }
 
 export function IntegrationsPage() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [configOpen, setConfigOpen] = useState<string | null>(null);
   const [n8nConfig, setN8nConfig] = useState({
@@ -95,18 +97,18 @@ export function IntegrationsPage() {
     mutationFn: (id: string) => integrationService.connect(id),
     onSuccess: () => {
       invalidate();
-      toast.success("Integration connected successfully!");
+      toast.success(t("toast.integrationConnected"));
     },
-    onError: () => toast.error("Failed to connect integration."),
+    onError: () => toast.error(t("toast.accessDenied")),
   });
 
   const disconnectMutation = useMutation({
     mutationFn: (id: string) => integrationService.disconnect(id),
     onSuccess: () => {
       invalidate();
-      toast.success("Integration disconnected.");
+      toast.success(t("toast.integrationDisconnected"));
     },
-    onError: () => toast.error("Failed to disconnect."),
+    onError: () => toast.error(t("toast.disconnected")),
   });
 
   const testMutation = useMutation({
@@ -115,16 +117,16 @@ export function IntegrationsPage() {
       if (result.ok) toast.success(result.message);
       else toast.error(result.message);
     },
-    onError: () => toast.error("Connection test failed."),
+    onError: () => toast.error(t("buttons.test")),
   });
 
   const syncMutation = useMutation({
     mutationFn: (id: string) => integrationService.synchronize(id),
     onSuccess: () => {
       invalidate();
-      toast.success("Synchronization complete.");
+      toast.success(t("toast.syncComplete"));
     },
-    onError: () => toast.error("Synchronization failed."),
+    onError: () => toast.error(t("toast.syncFailed")),
   });
 
   const configureMutation = useMutation({
@@ -132,7 +134,7 @@ export function IntegrationsPage() {
       integrationService.configure(id, sanitizeConfig(config)),
     onSuccess: () => {
       invalidate();
-      toast.success("Configuration saved.");
+      toast.success(t("toast.configSaved"));
       setConfigOpen(null);
       // Remask secrets in local UI state — never keep real secrets
       setN8nConfig((c) => ({
@@ -195,7 +197,7 @@ export function IntegrationsPage() {
                 disabled={testMutation.isPending}
                 onClick={() => testMutation.mutate(int.id)}
               >
-                <PlugZap className="h-3 w-3" /> Test
+                <PlugZap className="h-3 w-3" /> {t("buttons.test")}
               </Button>
               <Button
                 variant="outline"
@@ -204,7 +206,7 @@ export function IntegrationsPage() {
                 disabled={syncMutation.isPending}
                 onClick={() => syncMutation.mutate(int.id)}
               >
-                <RefreshCw className={cn("h-3 w-3", syncMutation.isPending && syncMutation.variables === int.id && "animate-spin")} /> Sync
+                <RefreshCw className={cn("h-3 w-3", syncMutation.isPending && syncMutation.variables === int.id && "animate-spin")} /> {t("buttons.sync")}
               </Button>
               <Button
                 variant="outline"
@@ -213,7 +215,7 @@ export function IntegrationsPage() {
                 disabled={disconnectMutation.isPending}
                 onClick={() => disconnectMutation.mutate(int.id)}
               >
-                <Unlink className="h-3 w-3" /> Disconnect
+                <Unlink className="h-3 w-3" /> {t("buttons.disconnect")}
               </Button>
             </>
           ) : (
@@ -223,7 +225,7 @@ export function IntegrationsPage() {
               disabled={connectMutation.isPending}
               onClick={() => connectMutation.mutate(int.id)}
             >
-              <Link2 className="h-3 w-3" /> Connect
+              <Link2 className="h-3 w-3" /> {t("buttons.connect")}
             </Button>
           )}
         </div>
@@ -234,8 +236,8 @@ export function IntegrationsPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Integrations</h1>
-        <p className="text-sm text-muted-foreground">{connected.length} connected · {available.length} available</p>
+        <h1 className="text-2xl font-bold text-foreground">{t("pages.integrations.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("pages.integrations.subtitle", { connected: connected.length, available: available.length })}</p>
       </div>
 
       {connected.length > 0 && (

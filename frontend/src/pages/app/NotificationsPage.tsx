@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn, timeAgo } from "@/lib/utils";
 import type { NotificationCategory } from "@/types";
+import { useTranslation } from "@/hooks/useTranslation";
 
 const CATEGORY_ICONS: Record<NotificationCategory, typeof Bell> = {
   leads: Users,
@@ -22,6 +23,7 @@ const CATEGORY_COLORS: Record<NotificationCategory, string> = {
 };
 
 export function NotificationsPage() {
+  const { t } = useTranslation();
   const { notifications, markRead, markAllRead, deleteNotification } = useNotifications();
 
   const categories: (NotificationCategory | "all")[] = ["all", "leads", "meetings", "tasks", "automations", "system"];
@@ -34,8 +36,8 @@ export function NotificationsPage() {
     <div className="p-6 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
-          <p className="text-sm text-muted-foreground">{unreadCount} unread notifications</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("pages.notifications.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("pages.notifications.subtitle", { count: unreadCount })}</p>
         </div>
         {unreadCount > 0 && (
           <Button variant="outline" size="sm" className="gap-2" onClick={() => markAllRead.mutate()}>
@@ -63,7 +65,7 @@ export function NotificationsPage() {
               {getFiltered(cat).length === 0 ? (
                 <div className="text-center py-12">
                   <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground">No notifications in this category</p>
+                  <p className="text-muted-foreground">{t("empty.notifications")}</p>
                 </div>
               ) : getFiltered(cat).map((notif) => {
                 const Icon = CATEGORY_ICONS[notif.category];

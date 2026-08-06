@@ -374,6 +374,16 @@ export interface AppSettings {
     requireMfa: boolean;
     passwordMinLength: number;
   };
+  availability: {
+    timezone: string;
+    bufferMinutes: number;
+    days: Array<{
+      day: string;
+      enabled: boolean;
+      start: string;
+      end: string;
+    }>;
+  };
 }
 
 export type Settings = AppSettings;

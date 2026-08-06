@@ -15,8 +15,10 @@ import { cn, timeAgo } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import type { User, UserRole } from "@/types";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export function TeamPage() {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   const qc = useQueryClient();
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -41,11 +43,11 @@ export function TeamPage() {
     mutationFn: () => teamService.inviteUser(inviteForm),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.team.all });
-      toast.success("Invitation sent!");
+      toast.success(t("toast.invitationSent"));
       setInviteOpen(false);
       setInviteForm({ firstName: "", lastName: "", email: "", role: "SALES_REPRESENTATIVE" });
     },
-    onError: () => toast.error("Failed to invite user."),
+    onError: () => toast.error(t("toast.accessDenied")),
   });
 
   const statusMutation = useMutation({
@@ -53,7 +55,7 @@ export function TeamPage() {
       teamService.setStatus(id, status),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.team.all });
-      toast.success("User status updated.");
+      toast.success(t("toast.userUpdated"));
     },
   });
 
@@ -62,7 +64,7 @@ export function TeamPage() {
       teamService.updateUser(id, { role }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.team.all });
-      toast.success("User role updated.");
+      toast.success(t("toast.userRoleUpdated"));
       setEditUser(null);
     },
   });
@@ -71,7 +73,7 @@ export function TeamPage() {
     mutationFn: teamService.deleteUser,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.team.all });
-      toast.success("User deleted.");
+      toast.success(t("toast.userDeleted"));
       setDeleteId(null);
     },
   });
@@ -93,8 +95,8 @@ export function TeamPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Team</h1>
-          <p className="text-sm text-muted-foreground">{users.filter((u) => u.status === "active").length} active members</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("pages.team.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("pages.team.subtitle", { count: users.filter((u) => u.status === "active").length })}</p>
         </div>
         {isAdmin && (
           <Button size="sm" className="gap-2" onClick={() => setInviteOpen(true)}>

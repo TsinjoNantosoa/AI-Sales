@@ -16,28 +16,30 @@ import { useAuthStore } from "@/stores/authStore";
 import type { Lead, LeadStatus, User } from "@/types";
 import { formatCurrency, timeAgo, cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useTranslation } from "@/hooks/useTranslation";
 
-const COLUMNS: { id: LeadStatus; label: string; colorBar: string; colorText: string }[] = [
-  { id: "NEW", label: "New", colorBar: "bg-slate-400", colorText: "text-slate-600 dark:text-slate-400" },
-  { id: "CONTACTED", label: "Contacted", colorBar: "bg-blue-500", colorText: "text-blue-600 dark:text-blue-400" },
-  { id: "QUALIFYING", label: "Qualifying", colorBar: "bg-yellow-500", colorText: "text-yellow-600 dark:text-yellow-400" },
-  { id: "QUALIFIED", label: "Qualified", colorBar: "bg-green-500", colorText: "text-green-600 dark:text-green-400" },
-  { id: "MEETING_SCHEDULED", label: "Meeting", colorBar: "bg-purple-500", colorText: "text-purple-600 dark:text-purple-400" },
-  { id: "PROPOSAL_SENT", label: "Proposal", colorBar: "bg-indigo-500", colorText: "text-indigo-600 dark:text-indigo-400" },
-  { id: "NEGOTIATION", label: "Negotiation", colorBar: "bg-orange-500", colorText: "text-orange-600 dark:text-orange-400" },
-  { id: "WON", label: "Won", colorBar: "bg-emerald-500", colorText: "text-emerald-600 dark:text-emerald-400" },
-  { id: "LOST", label: "Lost", colorBar: "bg-red-500", colorText: "text-red-600 dark:text-red-400" },
+const COLUMNS: { id: LeadStatus; colorBar: string; colorText: string }[] = [
+  { id: "NEW", colorBar: "bg-slate-400", colorText: "text-slate-600 dark:text-slate-400" },
+  { id: "CONTACTED", colorBar: "bg-blue-500", colorText: "text-blue-600 dark:text-blue-400" },
+  { id: "QUALIFYING", colorBar: "bg-yellow-500", colorText: "text-yellow-600 dark:text-yellow-400" },
+  { id: "QUALIFIED", colorBar: "bg-green-500", colorText: "text-green-600 dark:text-green-400" },
+  { id: "MEETING_SCHEDULED", colorBar: "bg-purple-500", colorText: "text-purple-600 dark:text-purple-400" },
+  { id: "PROPOSAL_SENT", colorBar: "bg-indigo-500", colorText: "text-indigo-600 dark:text-indigo-400" },
+  { id: "NEGOTIATION", colorBar: "bg-orange-500", colorText: "text-orange-600 dark:text-orange-400" },
+  { id: "WON", colorBar: "bg-emerald-500", colorText: "text-emerald-600 dark:text-emerald-400" },
+  { id: "LOST", colorBar: "bg-red-500", colorText: "text-red-600 dark:text-red-400" },
 ];
 
 function DroppableColumn({ col, children, count, value }: {
   col: typeof COLUMNS[0]; children: React.ReactNode; count: number; value: number;
 }) {
+  const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
   return (
     <div className="flex flex-col w-[256px] flex-shrink-0">
       <div className={cn("flex items-center justify-between px-3 py-2 mb-2 rounded-lg bg-muted/50 border border-border border-t-2", col.colorBar.replace("bg-", "border-t-"))}>
         <div className="flex items-center gap-2">
-          <span className={cn("text-xs font-bold", col.colorText)}>{col.label}</span>
+          <span className={cn("text-xs font-bold", col.colorText)}>{t(`status.${col.id}`)}</span>
           <span className="h-5 min-w-[20px] px-1 bg-background rounded-full flex items-center justify-center text-[10px] font-bold text-muted-foreground border border-border">{count}</span>
         </div>
         <span className="text-[10px] text-muted-foreground font-medium">{formatCurrency(value)}</span>
@@ -126,6 +128,7 @@ function CardOverlay({ lead }: { lead: Lead }) {
 }
 
 export function PipelinePage() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
@@ -151,7 +154,7 @@ export function PipelinePage() {
       qc.invalidateQueries({ queryKey: queryKeys.leads.all });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.overview });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.pipeline });
-      toast.success(`Lead moved to ${lead.status.replace(/_/g, " ")}.`);
+      toast.success(t("toast.updated") + ` → ${t(`status.${lead.status}`)}`);
     },
   });
 
@@ -191,8 +194,8 @@ export function PipelinePage() {
       {/* ── Header ── */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Pipeline</h1>
-          <p className="page-subtitle">{activeCount} active · {formatCurrency(totalValue)} total value</p>
+          <h1 className="page-title">{t("pages.pipeline.title")}</h1>
+          <p className="page-subtitle">{t("pages.pipeline.subtitle", { count: activeCount, value: formatCurrency(totalValue) })}</p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           {/* View toggle — desktop */}
@@ -211,7 +214,7 @@ export function PipelinePage() {
             </button>
           </div>
           <Button size="sm" className="gap-1.5 h-9" onClick={() => setFormOpen(true)}>
-            <Plus className="h-4 w-4" /> Add Lead
+            <Plus className="h-4 w-4" /> {t("buttons.addLead")}
           </Button>
         </div>
       </div>
@@ -225,7 +228,7 @@ export function PipelinePage() {
           <SelectContent>
             {COLUMNS.map((col) => (
               <SelectItem key={col.id} value={col.id}>
-                {col.label} ({getColLeads(col.id).length})
+                {t(`status.${col.id}`)} ({getColLeads(col.id).length})
               </SelectItem>
             ))}
           </SelectContent>
@@ -285,7 +288,7 @@ export function PipelinePage() {
                 <div key={col.id}>
                   <div className="flex items-center gap-2 mb-2">
                     <div className={cn("h-2 w-2 rounded-full", col.colorBar)} />
-                    <h3 className={cn("text-xs font-bold uppercase tracking-wide", col.colorText)}>{col.label}</h3>
+                    <h3 className={cn("text-xs font-bold uppercase tracking-wide", col.colorText)}>{t(`status.${col.id}`)}</h3>
                     <span className="text-xs text-muted-foreground">({colLeads.length})</span>
                     <span className="text-xs text-muted-foreground ml-auto">{formatCurrency(getColValue(col.id))}</span>
                   </div>

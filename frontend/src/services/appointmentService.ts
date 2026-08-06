@@ -23,11 +23,18 @@ export const appointmentService = {
     return apiClient.get("/appointments");
   },
 
-  async getAppointment(id: string): Promise<Appointment> {
+  async getAppointment(id: string, opts?: { currentUserId?: string; role?: string }): Promise<Appointment> {
     if (USE_MOCKS) {
       await delay(150);
       const a = getDatabase().appointments.find((x) => x.id === id);
       if (!a) throw new Error("Not found");
+      if (
+        opts?.role === "SALES_REPRESENTATIVE" &&
+        opts.currentUserId &&
+        a.assignedUserId !== opts.currentUserId
+      ) {
+        throw new Error("Forbidden");
+      }
       return a;
     }
     return apiClient.get(`/appointments/${id}`);

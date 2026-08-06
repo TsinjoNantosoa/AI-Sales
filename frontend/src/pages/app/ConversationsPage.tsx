@@ -16,6 +16,7 @@ import { cn, timeAgo } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import { Link } from "react-router-dom";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type Filter = "all" | "open" | "waiting" | "assigned" | "ai_handled" | "human_handoff" | "closed";
 
@@ -29,6 +30,7 @@ const STATUS_DOT: Record<Conversation["status"], string> = {
 };
 
 export function ConversationsPage() {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -73,12 +75,12 @@ export function ConversationsPage() {
 
   const handoffMutation = useMutation({
     mutationFn: () => conversationService.requestHandoff(selectedId!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["conversations"] }); toast.success("Transferred to human agent."); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["conversations"] }); toast.success(t("toast.transferredToHuman")); },
   });
 
   const closeMutation = useMutation({
     mutationFn: () => conversationService.closeConversation(selectedId!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["conversations"] }); toast.success("Conversation closed."); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["conversations"] }); toast.success(t("toast.conversationClosed")); },
   });
 
   const filteredConvs = conversations.filter((c) => {
@@ -111,7 +113,7 @@ export function ConversationsPage() {
       )}>
         {/* List Header */}
         <div className="p-3 border-b border-border space-y-2 shrink-0">
-          <h2 className="font-semibold text-foreground">Conversations</h2>
+          <h2 className="font-semibold text-foreground">{t("pages.conversations.title")}</h2>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -134,7 +136,7 @@ export function ConversationsPage() {
         {/* List */}
         <div className="flex-1 overflow-y-auto">
           {filteredConvs.length === 0 ? (
-            <EmptyState icon={MessageSquare} title="No conversations" description="No conversations match your filter." />
+            <EmptyState icon={MessageSquare} title={t("empty.conversations")} description={t("empty.conversationsDesc")} />
           ) : filteredConvs.map((c) => (
             <button
               key={c.id}
