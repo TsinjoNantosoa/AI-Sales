@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: sans-serif; color: #111;">
+  <h2>Meeting confirmed</h2>
+  <p>Hi {{ name }}, your meeting is booked for {{ date }} at {{ time }}.</p>
+  {% if meeting_link %}<p><a href="{{ meeting_link }}">Join meeting</a></p>{% endif %}
+</body>
+</html>
