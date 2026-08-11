@@ -13,8 +13,10 @@ import { cn, formatDate } from "@/lib/utils";
 import { format, addDays, startOfToday, isSameDay } from "date-fns";
 import { appointmentService } from "@/services/appointmentService";
 import { leadService } from "@/services/leadService";
+import { publicService } from "@/services/publicService";
 import { getGoogleCalendarUrl } from "@/lib/calendar";
-import { DEFAULT_ASSIGNEE_ID } from "@/lib/constants";
+import { DEFAULT_ASSIGNEE_ID, USE_MOCKS } from "@/lib/constants";
+import { getPublicLeadId, getPublicSession } from "@/lib/publicSession";
 import { teamService } from "@/services/teamService";
 import type { Appointment, Lead } from "@/types";
 import { toast } from "sonner";
@@ -36,7 +38,8 @@ type FormValues = z.infer<typeof formSchema>;
 
 export function BookMeetingPage() {
   const [params] = useSearchParams();
-  const leadIdParam = params.get("leadId") || sessionStorage.getItem("publicLeadId") || "";
+  const leadIdParam =
+    params.get("leadId") || getPublicLeadId() || sessionStorage.getItem("publicLeadId") || "";
 
   const [step, setStep] = useState(0);
   const [selectedType, setSelectedType] = useState<typeof MEETING_TYPES[0] | null>(null);
@@ -59,28 +62,96 @@ export function BookMeetingPage() {
 
   useEffect(() => {
     if (!leadIdParam) return;
-    void leadService.getLead(leadIdParam).then((l) => {
-      setLead(l);
-      form.reset({
-        firstName: l.firstName,
-        lastName: l.lastName,
-        email: l.email,
-        company: l.companyName,
-        notes: "",
-      });
-    }).catch(() => undefined);
+    const loader = USE_MOCKS
+      ? leadService.getLead(leadIdParam)
+      : publicService.getLead(leadIdParam);
+    void loader
+      .then((l) => {
+        setLead(l);
+        form.reset({
+          firstName: l.firstName,
+          lastName: l.lastName,
+          email: l.email,
+          company: l.companyName,
+          notes: "",
+        });
+      })
+      .catch(() => undefined);
   }, [leadIdParam, form]);
 
   useEffect(() => {
     if (!selectedDate) return;
     const dateStr = format(selectedDate, "yyyy-MM-dd");
-    void appointmentService.getAvailableSlots(dateStr, DEFAULT_ASSIGNEE_ID).then(setSlots);
-  }, [selectedDate]);
+    if (USE_MOCKS) {
+      void appointmentService.getAvailableSlots(dateStr, DEFAULT_ASSIGNEE_ID).then(setSlots);
+    } else {
+      void publicService
+        .getSlots(dateStr, lead?.assignedUserId)
+        .then(setSlots)
+        .catch(() => setSlots([]));
+    }
+  }, [selectedDate, lead?.assignedUserId]);
 
   const handleConfirm = form.handleSubmit(async (values) => {
     if (!selectedDate || !selectedSlot || !selectedType) return;
     setLoading(true);
     try {
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+
+      if (!USE_MOCKS) {
+        if (!getPublicSession()?.publicToken) {
+          throw new Error("Missing public booking session. Submit a demo request first.");
+        }
+        let activeLead = lead;
+        if (!activeLead && leadIdParam) {
+          activeLead = await publicService.getLead(leadIdParam);
+          setLead(activeLead);
+        }
+        if (!activeLead) {
+          const created = await publicService.createLead({
+            firstName: values.firstName,
+            lastName: values.lastName,
+            companyName: values.company || "Unknown",
+            email: values.email,
+            country: "Unknown",
+            source: "Website",
+            serviceInterest: "Other",
+            needDescription: values.notes || "Booked via public calendar",
+            consentGiven: true,
+            status: "NEW",
+          });
+          activeLead = created.lead;
+          setLead(activeLead);
+        }
+
+        const appt = await publicService.createAppointment(
+          {
+            leadId: activeLead.id,
+            leadName: `${values.firstName} ${values.lastName}`,
+            leadCompany: values.company || activeLead.companyName,
+            leadEmail: values.email,
+            ...(activeLead.assignedUserId
+              ? { assignedUserId: activeLead.assignedUserId }
+              : {}),
+            salespersonName: "Sales Team",
+            date: dateStr,
+            time: selectedSlot,
+            duration: selectedType.duration,
+            timezone: "America/New_York",
+            type: selectedType.type,
+            status: "Confirmed",
+            meetingLink: `https://meet.google.com/ais-${activeLead.id.slice(-6)}`,
+            notes: values.notes,
+            googleMeet: true,
+          },
+          `book-${activeLead.id}-${dateStr}-${selectedSlot}`
+        );
+        setAppointment(appt);
+        setConfirmed(true);
+        toast.success("Meeting confirmed!");
+        return;
+      }
+
       let activeLead = lead;
       if (!activeLead) {
         activeLead = await leadService.createLead({
@@ -99,8 +170,9 @@ export function BookMeetingPage() {
         setLead(activeLead);
       }
 
-      const assignee = await teamService.getUser(activeLead.assignedUserId || DEFAULT_ASSIGNEE_ID).catch(() => null);
-      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const assignee = await teamService
+        .getUser(activeLead.assignedUserId || DEFAULT_ASSIGNEE_ID)
+        .catch(() => null);
       const appt = await appointmentService.createAppointment({
         leadId: activeLead.id,
         leadName: `${values.firstName} ${values.lastName}`,

@@ -176,7 +176,11 @@ class LeadService:
         await self.db.flush()
 
         if data.tags:
-            lead.tag_entities = await self._ensure_tags(data.tags)
+            tags = await self._ensure_tags(data.tags)
+            # Reload with selectinload so assigning the collection does not lazy-load.
+            lead = await self._get_lead(lead.id)
+            lead.tag_entities = tags
+            await self.db.flush()
 
         if assigned_id is None:
             await self.assignment.auto_assign(
@@ -214,6 +218,7 @@ class LeadService:
                 details=f"Created lead {lead.email}",
             )
         await self.db.flush()
+        lead.updated_at = utcnow()
         # reload tags
         lead = await self._get_lead(lead.id)
         return lead_to_out(lead)
@@ -246,6 +251,7 @@ class LeadService:
                 payload.pop("assigned_user_id")
         if "tags" in payload:
             tags = payload.pop("tags") or []
+            # Collection already selectinloaded via _get_lead; replace safely.
             lead.tag_entities = await self._ensure_tags(tags)
         if "next_follow_up_at" in payload and payload["next_follow_up_at"]:
             payload["next_follow_up_at"] = datetime.fromisoformat(

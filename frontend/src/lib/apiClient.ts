@@ -20,22 +20,109 @@ interface RequestOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
   skipAuth?: boolean;
+  /** Internal: skip refresh retry to avoid loops */
+  _retried?: boolean;
 }
 
-function getAccessToken(): string | null {
+interface AuthPersistShape {
+  state?: {
+    token?: string | null;
+    refreshToken?: string | null;
+    user?: unknown;
+    isAuthenticated?: boolean;
+  };
+  token?: string;
+  refreshToken?: string;
+}
+
+function readAuthPersist(): AuthPersistShape | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.auth);
     if (!raw) {
       const legacy = localStorage.getItem("auth-storage");
       if (!legacy) return null;
-      const parsed = JSON.parse(legacy) as { state?: { token?: string } };
-      return parsed.state?.token ?? null;
+      return JSON.parse(legacy) as AuthPersistShape;
     }
-    const parsed = JSON.parse(raw) as { state?: { token?: string }; token?: string };
-    return parsed.state?.token ?? parsed.token ?? null;
+    return JSON.parse(raw) as AuthPersistShape;
   } catch {
     return null;
   }
+}
+
+function getAccessToken(): string | null {
+  const parsed = readAuthPersist();
+  if (!parsed) return null;
+  return parsed.state?.token ?? parsed.token ?? null;
+}
+
+function getRefreshToken(): string | null {
+  const parsed = readAuthPersist();
+  if (!parsed) return null;
+  return parsed.state?.refreshToken ?? parsed.refreshToken ?? null;
+}
+
+function patchAuthTokens(accessToken: string, refreshToken?: string | null): void {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.auth);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as AuthPersistShape;
+    if (parsed.state) {
+      parsed.state.token = accessToken;
+      if (refreshToken) parsed.state.refreshToken = refreshToken;
+      else if (refreshToken === null) parsed.state.refreshToken = undefined;
+    } else {
+      parsed.token = accessToken;
+      if (refreshToken) parsed.refreshToken = refreshToken;
+      else if (refreshToken === null) parsed.refreshToken = undefined;
+    }
+    localStorage.setItem(STORAGE_KEYS.auth, JSON.stringify(parsed));
+  } catch {
+    // ignore
+  }
+}
+
+function clearAuthAndRedirect(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.auth);
+    localStorage.removeItem("auth-storage");
+  } catch {
+    // ignore
+  }
+  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    window.location.href = "/login";
+  }
+}
+
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
+    try {
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as {
+        token?: string;
+        refreshToken?: string;
+      };
+      if (!body.token) return null;
+      patchAuthTokens(body.token, body.refreshToken ?? refreshToken);
+      return body.token;
+    } catch {
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 function buildUrl(path: string, params?: QueryParams): string {
@@ -110,8 +197,16 @@ async function request<T>(
       signal: controller.signal,
     });
 
+    if (res.status === 401 && !options.skipAuth && !options._retried && !path.includes("/auth/")) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        return request<T>(method, path, body, { ...options, _retried: true });
+      }
+      clearAuthAndRedirect();
+      throw new ApiError("Unauthorized", 401);
+    }
+
     if (res.status === 401) {
-      // Placeholder for refresh-token flow against FastAPI
       throw new ApiError("Unauthorized", 401);
     }
 

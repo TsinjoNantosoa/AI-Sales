@@ -21,7 +21,7 @@ os.environ["EMAIL_MOCK_MODE"] = "true"
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_sales_test",
+    "postgresql+asyncpg://postgres:postgres@localhost:5433/ai_sales_test",
 )
 
 

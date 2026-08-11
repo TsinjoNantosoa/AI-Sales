@@ -13,7 +13,10 @@ const DEMO_USER_IDS: Record<string, string> = {
 const sessionPasswordOverrides: Record<string, string> = {};
 
 export const authService = {
-  async login(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
+  async login(
+    email: string,
+    password: string
+  ): Promise<{ user: AuthUser; token: string; refreshToken?: string }> {
     if (USE_MOCKS) {
       await new Promise((r) => setTimeout(r, 400));
       const expected =
@@ -36,9 +39,22 @@ export const authService = {
           avatar: user.avatar,
         },
         token: `mock-jwt-${user.id}`,
+        refreshToken: `mock-refresh-${user.id}`,
       };
     }
     return apiClient.post("/auth/login", { email, password });
+  },
+
+  async logout(refreshToken?: string | null): Promise<void> {
+    if (USE_MOCKS) return;
+    await apiClient.post("/auth/logout", { refreshToken });
+  },
+
+  async refresh(refreshToken: string): Promise<{ user: AuthUser; token: string; refreshToken?: string }> {
+    if (USE_MOCKS) {
+      throw new Error("Refresh not available in mock mode");
+    }
+    return apiClient.post("/auth/refresh", { refreshToken }, { skipAuth: true });
   },
 
   async forgotPassword(email: string): Promise<{ resetToken?: string }> {

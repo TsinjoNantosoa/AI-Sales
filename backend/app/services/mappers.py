@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import inspect as sa_inspect
 
@@ -167,8 +168,20 @@ def conversation_to_out(
 
 def appointment_to_out(appt: Appointment) -> AppointmentOut:
     start = appt.start_at
-    date_str = start.date().isoformat() if isinstance(start, datetime) else ""
-    time_str = start.strftime("%H:%M") if isinstance(start, datetime) else ""
+    if isinstance(start, datetime):
+        tz_name = appt.timezone or "UTC"
+        try:
+            zone = ZoneInfo(tz_name)
+        except ZoneInfoNotFoundError:
+            zone = ZoneInfo("UTC")
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=UTC)
+        local = start.astimezone(zone)
+        date_str = local.date().isoformat()
+        time_str = local.strftime("%H:%M")
+    else:
+        date_str = ""
+        time_str = ""
     return AppointmentOut(
         id=str(appt.id),
         lead_id=str(appt.lead_id),

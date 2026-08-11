@@ -10,14 +10,13 @@ import argparse
 import asyncio
 import uuid
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
 from app.core.config import get_settings
 from app.core.enums import UserRole, UserStatus
 from app.core.security import hash_password
 from app.models.user import User
 from app.utils import normalize_email
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
 async def main() -> None:

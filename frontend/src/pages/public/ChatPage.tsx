@@ -6,6 +6,9 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { conversationService } from "@/services/conversationService";
 import { leadService } from "@/services/leadService";
+import { publicService } from "@/services/publicService";
+import { USE_MOCKS } from "@/lib/constants";
+import { getPublicLeadId, getPublicSession } from "@/lib/publicSession";
 import type { Lead } from "@/types";
 import { toast } from "sonner";
 
@@ -47,7 +50,8 @@ const QUALIFICATION_FLOW = [
 export function ChatPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const leadId = params.get("leadId") || sessionStorage.getItem("publicLeadId") || "";
+  const leadId =
+    params.get("leadId") || getPublicLeadId() || sessionStorage.getItem("publicLeadId") || "";
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -66,28 +70,48 @@ export function ChatPage() {
       return;
     }
     try {
-      const [l, conv] = await Promise.all([
-        leadService.getLead(leadId),
-        conversationService.getOrCreateForLead(leadId),
-      ]);
-      setLead(l);
-      setConversationId(conv.id);
-      setScore(l.score);
-      setQualified(l.score >= 70);
-      setMessages([
-        {
-          id: "welcome",
-          content: `Hi ${l.firstName}! I'm Ava, your AI Sales Assistant.\nI'll help qualify your project for ${l.companyName}. What brings you here today?`,
-          sender: "ai",
-          timestamp: new Date(),
-          quickReplies: QUALIFICATION_FLOW[0].quickReplies,
-        },
-      ]);
-      await conversationService.sendMessage(
-        conv.id,
-        QUALIFICATION_FLOW[0].message,
-        "ai"
-      );
+      if (!USE_MOCKS) {
+        const session = getPublicSession();
+        if (!session?.publicToken) {
+          throw new Error("Missing public session");
+        }
+        const [l, conv] = await Promise.all([
+          publicService.getLead(leadId),
+          publicService.getOrCreateConversation(leadId),
+        ]);
+        setLead(l);
+        setConversationId(conv.id);
+        setScore(l.score);
+        setQualified(l.score >= 70);
+        setMessages([
+          {
+            id: "welcome",
+            content: `Hi ${l.firstName}! I'm Ava, your AI Sales Assistant.\nI'll help qualify your project for ${l.companyName}. What brings you here today?`,
+            sender: "ai",
+            timestamp: new Date(),
+            quickReplies: QUALIFICATION_FLOW[0].quickReplies,
+          },
+        ]);
+      } else {
+        const [l, conv] = await Promise.all([
+          leadService.getLead(leadId),
+          conversationService.getOrCreateForLead(leadId),
+        ]);
+        setLead(l);
+        setConversationId(conv.id);
+        setScore(l.score);
+        setQualified(l.score >= 70);
+        setMessages([
+          {
+            id: "welcome",
+            content: `Hi ${l.firstName}! I'm Ava, your AI Sales Assistant.\nI'll help qualify your project for ${l.companyName}. What brings you here today?`,
+            sender: "ai",
+            timestamp: new Date(),
+            quickReplies: QUALIFICATION_FLOW[0].quickReplies,
+          },
+        ]);
+        await conversationService.sendMessage(conv.id, QUALIFICATION_FLOW[0].message, "ai");
+      }
     } catch {
       toast.error("Lead not found. Please submit a demo request first.");
     } finally {
@@ -118,6 +142,43 @@ export function ChatPage() {
 
     try {
       const nextStep = Math.min(flowStep + 1, QUALIFICATION_FLOW.length);
+
+      if (!USE_MOCKS) {
+        const result = await publicService.qualify(conversationId, nextStep, text, leadId);
+        setScore(result.qualification.score);
+        setLead(result.lead);
+        setFlowStep(nextStep);
+
+        let aiContent = result.assistantMessage.content;
+        let quickReplies: string[] | undefined;
+
+        if (result.qualification.score >= 70 || nextStep >= QUALIFICATION_FLOW.length) {
+          setQualified(true);
+          aiContent = `Based on our conversation, I've calculated your lead profile:\n\nLead Score: ${result.qualification.score}/100 — ${result.qualification.temperature} Lead\n\nYou're a strong fit. Would you like to book a discovery call?`;
+          quickReplies = ["Yes, book a meeting!", "Send me more info", "Not right now"];
+        } else {
+          const step = QUALIFICATION_FLOW[Math.min(nextStep, QUALIFICATION_FLOW.length - 1)];
+          aiContent = step.message;
+          quickReplies = step.quickReplies;
+        }
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            content: aiContent,
+            sender: "ai",
+            timestamp: new Date(),
+            quickReplies,
+          },
+        ]);
+
+        if (result.qualification.temperature === "HOT" && result.qualification.score >= 70) {
+          toast.success("You're now a hot lead — booking recommended!");
+        }
+        return;
+      }
+
       const result = await conversationService.applyQualification(
         leadId,
         conversationId,

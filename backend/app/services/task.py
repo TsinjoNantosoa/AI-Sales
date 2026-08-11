@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies.auth import CurrentUser
 from app.core.enums import ActivityType, TaskStatus
 from app.core.exceptions import NotFoundError
-from app.core.permissions import can_access_all_leads, ensure_permission
+from app.core.permissions import can_access_all_leads, ensure_permission, ensure_task_access
 from app.models.task import Task
 from app.models.user import User
 from app.schemas.common import TaskCreate, TaskOut, TaskUpdate
@@ -34,10 +34,11 @@ class TaskService:
         return task
 
     def _assert_access(self, task: Task, user: CurrentUser) -> None:
-        if can_access_all_leads(user.role):
-            return
-        if str(task.assigned_user_id) != user.id:
-            raise NotFoundError("Task not found")
+        ensure_task_access(
+            role=user.role,
+            user_id=user.id,
+            task_assigned_user_id=str(task.assigned_user_id) if task.assigned_user_id else None,
+        )
 
     async def list_tasks(self, user: CurrentUser) -> list[TaskOut]:
         ensure_permission(user.role, "tasks:read")

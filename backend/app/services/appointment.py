@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies.auth import CurrentUser
 from app.core.enums import ActivityType, AppointmentStatus, LeadStatus, NotificationCategory
 from app.core.exceptions import AppointmentConflictError, NotFoundError
-from app.core.permissions import can_access_all_leads, ensure_permission
+from app.core.permissions import can_access_all_leads, ensure_appointment_access, ensure_permission
 from app.models.appointment import Appointment
 from app.models.lead import Lead
 from app.models.user import User
@@ -52,10 +53,13 @@ class AppointmentService:
         return appt
 
     def _assert_access(self, appt: Appointment, user: CurrentUser) -> None:
-        if can_access_all_leads(user.role):
-            return
-        if str(appt.assigned_user_id) != user.id:
-            raise NotFoundError("Appointment not found")
+        ensure_appointment_access(
+            role=user.role,
+            user_id=user.id,
+            appointment_assigned_user_id=str(appt.assigned_user_id)
+            if appt.assigned_user_id
+            else None,
+        )
 
     async def list_appointments(self, user: CurrentUser) -> list[AppointmentOut]:
         ensure_permission(user.role, "appointments:read")
@@ -72,7 +76,12 @@ class AppointmentService:
         return appointment_to_out(appt)
 
     def _parse_start(self, date: str, time: str, tz: str = "UTC") -> datetime:
-        return datetime.fromisoformat(f"{date}T{time}:00+00:00")
+        try:
+            zone = ZoneInfo(tz or "UTC")
+        except ZoneInfoNotFoundError:
+            zone = ZoneInfo("UTC")
+        local = datetime.fromisoformat(f"{date}T{time}:00").replace(tzinfo=zone)
+        return local.astimezone(UTC)
 
     async def _check_conflict(
         self,
@@ -209,8 +218,14 @@ class AppointmentService:
         appt.cancelled_at = utcnow()
         await self.db.flush()
 
-    async def available_slots(self, date: str, user_id: str) -> list[str]:
+    async def available_slots(
+        self, date: str, user_id: str, *, timezone: str = "UTC"
+    ) -> list[str]:
         uid = uuid.UUID(user_id)
+        try:
+            zone = ZoneInfo(timezone or "UTC")
+        except ZoneInfoNotFoundError:
+            zone = ZoneInfo("UTC")
         result = await self.db.execute(
             select(Appointment).where(
                 Appointment.assigned_user_id == uid,
@@ -219,6 +234,9 @@ class AppointmentService:
         )
         taken: set[str] = set()
         for a in result.scalars().all():
-            if a.start_at.date().isoformat() == date:
-                taken.add(a.start_at.strftime("%H:%M"))
+            local_start = a.start_at.astimezone(zone) if a.start_at.tzinfo else a.start_at.replace(
+                tzinfo=UTC
+            ).astimezone(zone)
+            if local_start.date().isoformat() == date:
+                taken.add(local_start.strftime("%H:%M"))
         return [s for s in BUSINESS_SLOTS if s not in taken]

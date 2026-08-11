@@ -20,5 +20,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // Unit tests always use the mock repository, even if the shell has VITE_USE_MOCKS=false.
+    env: {
+      VITE_USE_MOCKS: "true",
+    },
   },
 });

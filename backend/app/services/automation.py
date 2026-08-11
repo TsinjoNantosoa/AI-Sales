@@ -8,9 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import CurrentUser
+from app.core.config import get_settings
 from app.core.enums import ExecutionStatus, WorkflowStatus
 from app.core.exceptions import NotFoundError
 from app.core.permissions import ensure_permission
+from app.integrations.automation_provider import get_automation_provider
 from app.models.workflow import Workflow, WorkflowExecution
 from app.schemas.dashboard import WorkflowExecutionOut, WorkflowOut
 from app.utils import to_iso, utcnow
@@ -73,7 +75,6 @@ class AutomationService:
             q = q.where(WorkflowExecution.lead_id == uuid.UUID(lead_id))
         result = await self.db.execute(q)
         execs = result.scalars().all()
-        # load names
         workflows = {
             w.id: w.name
             for w in (await self.db.execute(select(Workflow))).scalars().all()
@@ -100,6 +101,25 @@ class AutomationService:
         w = result.scalar_one_or_none()
         if w is None:
             raise NotFoundError("Workflow not found")
+
+        settings = get_settings()
+        if not settings.n8n_enabled:
+            provider = get_automation_provider(self.db)
+            await provider.trigger(
+                "workflow.test",
+                {"workflow_id": w.id, "trigger": "manual_test"},
+            )
+            exec_result = await self.db.execute(
+                select(WorkflowExecution)
+                .where(WorkflowExecution.workflow_id == w.id)
+                .order_by(WorkflowExecution.started_at.desc())
+                .limit(1)
+            )
+            exec_row = exec_result.scalar_one_or_none()
+            if exec_row is not None:
+                await self.db.refresh(w)
+                return execution_to_out(exec_row, w.name)
+
         started = utcnow()
         exec_row = WorkflowExecution(
             workflow_id=w.id,

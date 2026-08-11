@@ -17,8 +17,8 @@ from app.core.enums import (
     MessageSender,
     NotificationCategory,
 )
-from app.core.exceptions import AuthorizationError, NotFoundError
-from app.core.permissions import can_access_all_leads, ensure_permission
+from app.core.exceptions import NotFoundError
+from app.core.permissions import can_access_all_leads, ensure_conversation_access, ensure_permission
 from app.models.conversation import Conversation, Message
 from app.models.lead import Lead
 from app.schemas.common import AiReplyResponse, ConversationOut, MessageOut, QualifyResponse
@@ -57,12 +57,15 @@ class ConversationService:
         return conv
 
     async def _assert_access(self, conv: Conversation, user: CurrentUser) -> None:
-        if can_access_all_leads(user.role):
-            return
         lead = await self._get_lead(conv.lead_id)
-        if str(conv.assigned_user_id) == user.id or str(lead.assigned_user_id) == user.id:
-            return
-        raise AuthorizationError("You cannot access this conversation")
+        ensure_conversation_access(
+            role=user.role,
+            user_id=user.id,
+            conversation_assigned_user_id=str(conv.assigned_user_id)
+            if conv.assigned_user_id
+            else None,
+            lead_assigned_user_id=str(lead.assigned_user_id) if lead.assigned_user_id else None,
+        )
 
     async def list_conversations(self, user: CurrentUser) -> list[ConversationOut]:
         ensure_permission(user.role, "conversations:read")

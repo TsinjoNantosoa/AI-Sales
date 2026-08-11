@@ -1,20 +1,27 @@
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
 .venv/
 venv/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
 .coverage
+coverage/
 htmlcov/
 dist/
 *.egg-info/
+.tox/
+.nox/
 
-# Env / secrets
+# Env / secrets — keep only *.example
 .env
-.env.local
+.env.*
+!.env.example
+!**/.env.example
 *.pem
+*.key
 
 # IDE / OS
 .idea/
@@ -25,11 +32,31 @@ Thumbs.db
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/dist-ssr/
 frontend/test-results/
 frontend/playwright-report/
+frontend/coverage/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
 
 # Backend local
 backend/.venv/
 backend/.env
 backend/htmlcov/
 backend/.coverage
+backend/.mypy_cache/
+backend/.pytest_cache/
+backend/.ruff_cache/
+
+# Archives must never include .git / secrets
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+
+# Generated reports
+test-results/
+playwright-report/
+coverage/

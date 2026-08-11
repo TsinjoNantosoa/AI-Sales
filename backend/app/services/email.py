@@ -33,7 +33,8 @@ class EmailService:
     ) -> EmailLogOut:
         status = EmailLogStatus.SENT
         error = None
-        if not self.settings.email_mock_mode and self.settings.smtp_host:
+        is_mock = self.settings.email_mock_mode or not self.settings.smtp_host
+        if not is_mock:
             try:
                 # Real SMTP would go here; keep mock-safe for now
                 logger.info("email_send_skipped_real", to=to, subject=subject)
@@ -43,16 +44,25 @@ class EmailService:
         else:
             logger.info("email_mock_send", to=to, subject=subject, body_preview=body[:80])
 
+        # Keep status="sent" for FE enum compat; document mock via template_slug
+        resolved_slug = template_slug or ""
+        if is_mock and status == EmailLogStatus.SENT:
+            if not resolved_slug:
+                resolved_slug = "SENT_MOCK"
+            elif "SENT_MOCK" not in resolved_slug:
+                # Preserve functional slug; FE can detect mock via provider_message_id prefix
+                pass
+
         row = EmailLog(
             lead_id=uuid.UUID(lead_id) if lead_id else None,
-            template_slug=template_slug or "",
+            template_slug=resolved_slug,
             sender=self.settings.smtp_from_email,
             recipient=to,
             subject=subject,
             status=status,
             error_message=error,
             sent_at=utcnow() if status == EmailLogStatus.SENT else None,
-            provider_message_id=f"mock-{uuid.uuid4().hex[:12]}",
+            provider_message_id=f"mock-{uuid.uuid4().hex[:12]}" if is_mock else None,
         )
         self.db.add(row)
         await self.db.flush()

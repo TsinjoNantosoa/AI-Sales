@@ -321,7 +321,11 @@ export function Sidebar({ mobile = false, onClose }: SidebarProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                onClick={() => { logout(); window.location.href = "/login"; }}
+                onClick={() => {
+                  void logout().finally(() => {
+                    window.location.href = "/login";
+                  });
+                }}
               >
                 <LogOut className="h-4 w-4 mr-2" />Sign Out
               </DropdownMenuItem>

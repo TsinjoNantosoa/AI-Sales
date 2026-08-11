@@ -115,3 +115,52 @@ def ensure_lead_access(
     if hide_as_not_found:
         raise NotFoundError("Lead not found", code="LEAD_NOT_FOUND")
     raise AuthorizationError("You cannot access this lead")
+
+
+def ensure_conversation_access(
+    *,
+    role: str,
+    user_id: str,
+    conversation_assigned_user_id: str | None,
+    lead_assigned_user_id: str | None = None,
+    hide_as_not_found: bool = True,
+) -> None:
+    if can_access_all_leads(role):
+        return
+    if conversation_assigned_user_id == user_id or lead_assigned_user_id == user_id:
+        return
+    if hide_as_not_found:
+        raise NotFoundError("Conversation not found", code="CONVERSATION_NOT_FOUND")
+    raise AuthorizationError("You cannot access this conversation")
+
+
+def ensure_appointment_access(
+    *,
+    role: str,
+    user_id: str,
+    appointment_assigned_user_id: str | None,
+    hide_as_not_found: bool = True,
+) -> None:
+    if can_access_all_leads(role):
+        return
+    if appointment_assigned_user_id == user_id:
+        return
+    if hide_as_not_found:
+        raise NotFoundError("Appointment not found", code="APPOINTMENT_NOT_FOUND")
+    raise AuthorizationError("You cannot access this appointment")
+
+
+def ensure_task_access(
+    *,
+    role: str,
+    user_id: str,
+    task_assigned_user_id: str | None,
+    hide_as_not_found: bool = True,
+) -> None:
+    if can_access_all_leads(role):
+        return
+    if task_assigned_user_id == user_id:
+        return
+    if hide_as_not_found:
+        raise NotFoundError("Task not found", code="TASK_NOT_FOUND")
+    raise AuthorizationError("You cannot access this task")

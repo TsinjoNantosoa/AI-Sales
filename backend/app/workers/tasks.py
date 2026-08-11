@@ -1,4 +1,4 @@
-"""ARQ worker tasks stub."""
+"""ARQ worker tasks."""
 
 from __future__ import annotations
 
@@ -12,11 +12,24 @@ logger = get_logger(__name__)
 
 
 async def follow_up_leads(ctx: dict) -> str:
-    logger.info("worker_follow_up_leads")
-    return "ok"
+    """Process due follow-ups (24h / 3d / 7d) via FollowUpService."""
+    from app.core.database import AsyncSessionLocal
+    from app.services.follow_up import FollowUpService
+
+    async with AsyncSessionLocal() as session:
+        try:
+            processed = await FollowUpService(session).process()
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+    logger.info("worker_follow_up_leads", processed=processed)
+    return f"processed={processed}"
 
 
 async def sync_integrations(ctx: dict) -> str:
+    """Placeholder for future calendar / CRM sync jobs."""
     logger.info("worker_sync_integrations")
     return "ok"
 

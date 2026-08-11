@@ -44,7 +44,7 @@ export function LoginPage() {
     setError("");
     try {
       const result = await authService.login(data.email, data.password);
-      login(result.user, result.token);
+      login(result.user, result.token, result.refreshToken);
       toast.success(t("toast.welcomeBack", { name: result.user.firstName }));
     } catch {
       setError(t("auth.invalidCredentials"));

@@ -39,7 +39,8 @@ test.describe("Public lead flow", () => {
     await page.locator('input[name="firstName"]').fill("Flow");
     await page.locator('input[name="lastName"]').fill("Tester");
     await page.locator('input[name="companyName"]').fill("Flow Co");
-    await page.locator('input[name="email"]').fill("flow.tester@example.com");
+    const email = `flow.tester.${Date.now()}@example.com`;
+    await page.locator('input[name="email"]').fill(email);
 
     await selectOption(page, "Select country", "United States");
     await selectOption(page, "Employees", /11–50/);
@@ -94,7 +95,7 @@ test.describe("Public lead flow", () => {
 
     await page.locator("#firstName").fill("Flow");
     await page.locator("#lastName").fill("Tester");
-    await page.locator("#email").fill("flow.tester@example.com");
+    await page.locator("#email").fill(email);
     await page.locator("#company").fill("Flow Co");
 
     await page.getByRole("button", { name: /Confirm Booking/i }).click();
@@ -106,7 +107,7 @@ test.describe("Public lead flow", () => {
 
     await page.goto("/app/leads");
     await expect(page.getByText(/Flow/i).first()).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/flow\.tester@example\.com|Tester/i).first()).toBeVisible({
+    await expect(page.getByText(new RegExp(`${email.replace(".", "\\.")}|Tester`, "i")).first()).toBeVisible({
       timeout: 10000,
     });
 

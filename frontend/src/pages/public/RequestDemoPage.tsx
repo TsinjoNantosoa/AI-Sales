@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { leadService } from "@/services/leadService";
+import { publicService } from "@/services/publicService";
+import { USE_MOCKS } from "@/lib/constants";
 import { parseBudgetRange } from "@/lib/score";
 import { toast } from "sonner";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -74,7 +76,7 @@ export function RequestDemoPage() {
     setLoading(true);
     try {
       const budget = parseBudgetRange(data.estimatedBudget);
-      const created = await leadService.createLead({
+      const payload = {
         firstName: data.firstName,
         lastName: data.lastName,
         companyName: data.companyName,
@@ -82,7 +84,7 @@ export function RequestDemoPage() {
         phone: data.phone,
         country: data.country,
         language: data.language || "en",
-        source: "Website",
+        source: "Website" as const,
         serviceInterest: data.serviceNeeded,
         timeline: data.desiredTimeline,
         needDescription: data.projectDescription,
@@ -90,10 +92,15 @@ export function RequestDemoPage() {
         companySize: data.companySize,
         ...budget,
         tags: [data.preferredContactChannel, data.companySize],
-        status: "NEW",
-      });
+        status: "NEW" as const,
+      };
+      const created = USE_MOCKS
+        ? await leadService.createLead(payload)
+        : (await publicService.createLead(payload)).lead;
+      if (USE_MOCKS) {
+        sessionStorage.setItem("publicLeadId", created.id);
+      }
       setLeadId(created.id);
-      sessionStorage.setItem("publicLeadId", created.id);
       setSubmitted(true);
       toast.success(t("common.success"));
     } catch (err) {
