@@ -261,6 +261,9 @@ class PublicFlowService:
         conversation_id: uuid.UUID,
         content: str,
     ) -> PublicMessageResponse:
+        from app.agents.graph import run_agent
+        from app.core.config import get_settings
+
         payload = self.validate_token(
             token, conversation_id=conversation_id, permission=PUBLIC_CHAT
         )
@@ -269,24 +272,53 @@ class PublicFlowService:
         if conv.lead_id != lead.id:
             raise AuthenticationError("Public token does not match conversation")
 
-        step = _infer_step(lead) + 1
-        step = min(step, 5)
+        settings = get_settings()
+        step = min(_infer_step(lead) + 1, 5)
 
-        # qualify persists the user answer as a message
-        await self.conversations.qualify(
-            conversation_id, lead.id, step=step, answer=content
+        self.db.add(
+            Message(
+                conversation_id=conv.id,
+                content=content,
+                sender_type=MessageSender.USER,
+                read=True,
+            )
         )
-        lead = await self._get_lead(lead.id)
 
-        reply_text = _assistant_reply_for_step(min(step, 5))
-        assistant = Message(
-            conversation_id=conv.id,
-            content=reply_text,
-            sender_type=MessageSender.AI,
-            sender_name="Ava",
-            read=False,
-        )
-        self.db.add(assistant)
+        if settings.ai_mock_mode or not settings.openai_api_key:
+            await self.conversations.qualify(
+                conversation_id, lead.id, step=step, answer=content
+            )
+            lead = await self._get_lead(lead.id)
+            reply_text = _assistant_reply_for_step(step)
+            assistant = Message(
+                conversation_id=conv.id,
+                content=reply_text,
+                sender_type=MessageSender.AI,
+                sender_name="Ava",
+                read=False,
+                llm_model="deterministic",
+                metadata_json={"fallbackUsed": False, "step": step},
+            )
+            self.db.add(assistant)
+        else:
+            result = await run_agent(
+                self.db, conversation=conv, lead=lead, user_message=content
+            )
+            assistant = Message(
+                conversation_id=conv.id,
+                content=result.reply,
+                sender_type=MessageSender.AI,
+                sender_name="Ava",
+                intent=result.intent,
+                read=False,
+                llm_model=result.model,
+                prompt_tokens=result.input_tokens,
+                completion_tokens=result.output_tokens,
+                total_tokens=result.total_tokens,
+                metadata_json=result.message_metadata(),
+            )
+            self.db.add(assistant)
+
         conv.updated_at = utcnow()
         lead.last_interaction_at = utcnow()
         await self.db.flush()
@@ -308,27 +340,68 @@ class PublicFlowService:
         answer: str,
         lead_id: str | None = None,
     ) -> PublicMessageResponse:
+        from app.agents.graph import run_agent
+        from app.core.config import get_settings
+
         payload = self.validate_token(
             token, conversation_id=conversation_id, permission=PUBLIC_CHAT
         )
         resolved_lead_id = uuid.UUID(lead_id) if lead_id else uuid.UUID(str(payload["lead_id"]))
         self.validate_token(token, lead_id=resolved_lead_id)
 
-        await self.conversations.qualify(
-            conversation_id, resolved_lead_id, step=step, answer=answer
-        )
+        settings = get_settings()
+        conv = await self._get_conversation(conversation_id)
         lead = await self._get_lead(resolved_lead_id)
+        if conv.lead_id != lead.id:
+            raise AuthenticationError("Public token does not match conversation")
 
-        reply_text = _assistant_reply_for_step(min(step, 5))
-        assistant = Message(
-            conversation_id=conversation_id,
-            content=reply_text,
-            sender_type=MessageSender.AI,
-            sender_name="Ava",
-            read=False,
+        # Always persist the user answer message
+        self.db.add(
+            Message(
+                conversation_id=conversation_id,
+                content=answer,
+                sender_type=MessageSender.USER,
+                read=True,
+            )
         )
-        self.db.add(assistant)
-        await self.db.flush()
+
+        if settings.ai_mock_mode or not settings.openai_api_key:
+            # Deterministic public qualification path (stable mock UI flow)
+            await self.conversations.qualify(
+                conversation_id, resolved_lead_id, step=step, answer=answer
+            )
+            lead = await self._get_lead(resolved_lead_id)
+            reply_text = _assistant_reply_for_step(min(step, 5))
+            assistant = Message(
+                conversation_id=conversation_id,
+                content=reply_text,
+                sender_type=MessageSender.AI,
+                sender_name="Ava",
+                read=False,
+                llm_model="deterministic",
+                metadata_json={"fallbackUsed": False, "step": step},
+            )
+            self.db.add(assistant)
+            await self.db.flush()
+        else:
+            result = await run_agent(
+                self.db, conversation=conv, lead=lead, user_message=answer
+            )
+            assistant = Message(
+                conversation_id=conversation_id,
+                content=result.reply,
+                sender_type=MessageSender.AI,
+                sender_name="Ava",
+                intent=result.intent,
+                read=False,
+                llm_model=result.model,
+                prompt_tokens=result.input_tokens,
+                completion_tokens=result.output_tokens,
+                total_tokens=result.total_tokens,
+                metadata_json=result.message_metadata(),
+            )
+            self.db.add(assistant)
+            await self.db.flush()
 
         conv = await self._get_conversation(conversation_id)
         lead = await self._get_lead(resolved_lead_id)

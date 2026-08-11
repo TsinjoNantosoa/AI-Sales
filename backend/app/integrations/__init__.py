@@ -35,8 +35,11 @@ class GmailClient:
 
 
 class OpenAIClient:
+    """Thin wrapper kept for integrations UI; agent path uses agents.openai_provider."""
+
     async def chat(self, messages: list[dict[str, str]]) -> str:
         settings = get_settings()
         if settings.ai_mock_mode or not settings.openai_api_key:
             return "Thanks for your message. Let me continue your qualification."
-        return "Thanks for your message."
+        # Prefer the structured agent for real conversations.
+        return "Thanks for your message. Please continue in the qualification chat."

@@ -18,7 +18,12 @@ from app.core.enums import (
     NotificationCategory,
 )
 from app.core.exceptions import NotFoundError
-from app.core.permissions import can_access_all_leads, ensure_conversation_access, ensure_permission
+from app.core.permissions import (
+    can_access_all_leads,
+    ensure_conversation_access,
+    ensure_lead_access,
+    ensure_permission,
+)
 from app.models.conversation import Conversation, Message
 from app.models.lead import Lead
 from app.schemas.common import AiReplyResponse, ConversationOut, MessageOut, QualifyResponse
@@ -94,6 +99,15 @@ class ConversationService:
         self, lead_id: uuid.UUID, user: CurrentUser | None = None
     ) -> ConversationOut:
         lead = await self._get_lead(lead_id)
+        if user is not None:
+            ensure_permission(user.role, "conversations:write")
+            ensure_lead_access(
+                role=user.role,
+                user_id=user.id,
+                lead_assigned_user_id=str(lead.assigned_user_id)
+                if lead.assigned_user_id
+                else None,
+            )
         result = await self.db.execute(
             select(Conversation)
             .options(selectinload(Conversation.messages))
@@ -163,6 +177,9 @@ class ConversationService:
         lead = await self._get_lead(lead_id)
         if conv.lead_id != lead.id:
             raise NotFoundError("Conversation/lead mismatch")
+        if user is not None:
+            ensure_permission(user.role, "conversations:write")
+            await self._assert_access(conv, user)
 
         self.db.add(
             Message(
@@ -266,18 +283,41 @@ class ConversationService:
             became_hot=became_hot,
         )
 
-    async def ai_reply(self, conv_id: uuid.UUID, user_message: str) -> AiReplyResponse:
+    async def ai_reply(
+        self, conv_id: uuid.UUID, user_message: str, user: CurrentUser
+    ) -> AiReplyResponse:
         from app.agents.graph import run_agent
 
+        ensure_permission(user.role, "conversations:write")
         conv = await self._get_conversation(conv_id)
+        await self._assert_access(conv, user)
         lead = await self._get_lead(conv.lead_id)
-        reply = await run_agent(self.db, conversation=conv, lead=lead, user_message=user_message)
+
+        # Persist user turn
+        self.db.add(
+            Message(
+                conversation_id=conv.id,
+                content=user_message,
+                sender_type=MessageSender.USER,
+                read=True,
+            )
+        )
+
+        result = await run_agent(
+            self.db, conversation=conv, lead=lead, user_message=user_message
+        )
         msg = Message(
             conversation_id=conv.id,
-            content=reply,
+            content=result.reply,
             sender_type=MessageSender.AI,
             sender_name="Ava",
+            intent=result.intent,
             read=False,
+            llm_model=result.model,
+            prompt_tokens=result.input_tokens,
+            completion_tokens=result.output_tokens,
+            total_tokens=result.total_tokens,
+            metadata_json=result.message_metadata(),
         )
         self.db.add(msg)
         conv.updated_at = utcnow()
@@ -286,6 +326,9 @@ class ConversationService:
 
     async def handoff(self, conv_id: uuid.UUID, user: CurrentUser | None = None) -> ConversationOut:
         conv = await self._get_conversation(conv_id)
+        if user is not None:
+            ensure_permission(user.role, "conversations:write")
+            await self._assert_access(conv, user)
         conv.human_handoff_requested = True
         conv.human_handoff_at = utcnow()
         conv.status = ConversationStatus.HUMAN_HANDOFF

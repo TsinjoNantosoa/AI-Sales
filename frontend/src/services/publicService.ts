@@ -51,14 +51,13 @@ export const publicService = {
     return apiClient.get(`/public/leads/${leadId}`, {
       skipAuth: true,
       headers: publicHeaders(),
-      params: { publicToken: getPublicToken() },
     });
   },
 
   async getOrCreateConversation(leadId: string): Promise<Conversation> {
     return apiClient.post(
       "/public/conversations",
-      { leadId, publicToken: getPublicToken() },
+      { leadId },
       { skipAuth: true, headers: publicHeaders() }
     );
   },
@@ -88,7 +87,7 @@ export const publicService = {
     return apiClient.get("/public/calendar/slots", {
       skipAuth: true,
       headers: publicHeaders(),
-      params: { date, userId, publicToken: getPublicToken() },
+      params: { date, userId },
     });
   },
 
@@ -114,10 +113,6 @@ export const publicService = {
   ): Promise<Appointment> {
     const headers = publicHeaders();
     if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
-    return apiClient.post(
-      "/public/appointments",
-      { ...data, publicToken: getPublicToken() },
-      { skipAuth: true, headers }
-    );
+    return apiClient.post("/public/appointments", data, { skipAuth: true, headers });
   },
 };
