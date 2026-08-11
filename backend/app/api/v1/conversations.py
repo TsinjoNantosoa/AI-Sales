@@ -82,7 +82,9 @@ async def ai_reply(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> AiReplyResponse:
-    return await ConversationService(db).ai_reply(conversation_id, body.message)
+    return await ConversationService(db).ai_reply(
+        conversation_id, body.message, current_user
+    )
 
 
 @router.post("/{conversation_id}/handoff", response_model=ConversationOut)
