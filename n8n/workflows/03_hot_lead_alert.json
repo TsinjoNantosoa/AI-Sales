@@ -341,7 +341,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ JSON.stringify({ externalExecutionId: $execution.id, output: { isHot: $('08 Confirm HOT in Backend').item.json.isHot === true, actionDuplicate: $json.duplicate === true, actionSkipped: $json.skipped === true } }) }"
+        "jsonBody": "={{ JSON.stringify({ externalExecutionId: $execution.id, output: { isHot: $('08 Confirm HOT in Backend').item.json.isHot === true, actionDuplicate: $json.duplicate === true, actionSkipped: $json.skipped === true } }) }}"
       },
       "id": "d9854859-5114-55e4-be67-409ed226202c",
       "name": "99 Mark Success",

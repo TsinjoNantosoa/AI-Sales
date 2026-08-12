@@ -275,7 +275,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ JSON.stringify({ externalExecutionId: $execution.id, output: { appointmentId: $('04 Normalize + Validate Event').item.json.appointmentId, actionDuplicate: $json.duplicate === true } }) }"
+        "jsonBody": "={{ JSON.stringify({ externalExecutionId: $execution.id, output: { appointmentId: $('04 Normalize + Validate Event').item.json.appointmentId, actionDuplicate: $json.duplicate === true } }) }}"
       },
       "id": "97dec7a7-8633-5749-b1ad-7222c66355c1",
       "name": "99 Mark Success",

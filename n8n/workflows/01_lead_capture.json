@@ -275,7 +275,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ JSON.stringify({ externalExecutionId: $execution.id, output: { welcomeSent: $json.sent === true, duplicateAction: $json.duplicate === true } }) }"
+        "jsonBody": "={{ JSON.stringify({ externalExecutionId: $execution.id, output: { welcomeSent: $json.sent === true, duplicateAction: $json.duplicate === true } }) }}"
       },
       "id": "e5c7ee06-596e-596c-8b5a-af7385fe1c28",
       "name": "99 Mark Success",

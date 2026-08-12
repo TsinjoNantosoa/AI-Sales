@@ -288,7 +288,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ JSON.stringify({ externalExecutionId: $execution.id, output: { ok: true } }) }"
+        "jsonBody": "={{ JSON.stringify({ externalExecutionId: $execution.id, output: { ok: true } }) }}"
       },
       "id": "d07d728a-36b5-5414-9576-189c3d253690",
       "name": "99 Mark Success",

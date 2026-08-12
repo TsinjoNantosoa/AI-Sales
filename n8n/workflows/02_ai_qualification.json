@@ -233,7 +233,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ JSON.stringify({ externalExecutionId: $execution.id, output: { requiresHuman: $('04 Normalize + Validate Event').item.json.requiresHuman, becameHot: $('04 Normalize + Validate Event').item.json.becameHot, score: $('04 Normalize + Validate Event').item.json.score, temperature: $('04 Normalize + Validate Event').item.json.temperature, routing: 'backend_authoritative' } }) }"
+        "jsonBody": "={{ JSON.stringify({ externalExecutionId: $execution.id, output: { requiresHuman: $('04 Normalize + Validate Event').item.json.requiresHuman, becameHot: $('04 Normalize + Validate Event').item.json.becameHot, score: $('04 Normalize + Validate Event').item.json.score, temperature: $('04 Normalize + Validate Event').item.json.temperature, routing: 'backend_authoritative' } }) }}"
       },
       "id": "934194df-8186-57d6-8014-9f1369eb82c4",
       "name": "99 Mark Success",
