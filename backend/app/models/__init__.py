@@ -3,6 +3,7 @@
 from app.models.activity import Activity
 from app.models.appointment import Appointment, CalendarConnection
 from app.models.audit import AuditLog
+from app.models.automation_event import AutomationEvent
 from app.models.conversation import Conversation, Message
 from app.models.email import EmailLog, EmailTemplate
 from app.models.integration import IntegrationConnection
@@ -41,6 +42,7 @@ __all__ = [
     "Notification",
     "Workflow",
     "WorkflowExecution",
+    "AutomationEvent",
     "EmailTemplate",
     "EmailLog",
     "IntegrationConnection",

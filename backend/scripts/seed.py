@@ -140,13 +140,9 @@ async def seed_integrations(db: AsyncSession) -> None:
 
 
 async def seed_workflows(db: AsyncSession) -> None:
-    specs = [
-        ("lead-welcome", "Lead Welcome Sequence", "Send welcome email on new lead"),
-        ("hot-lead-alert", "Hot Lead Alert", "Notify assignees when score turns HOT"),
-        ("meeting-reminder", "Meeting Reminder", "Remind before appointments"),
-        ("follow-up-nudge", "Follow-up Nudge", "Create tasks for stalled leads"),
-    ]
-    for slug, name, desc in specs:
+    from app.integrations.n8n_events import CANONICAL_WORKFLOWS
+
+    for slug, name, desc in CANONICAL_WORKFLOWS:
         result = await db.execute(select(Workflow).where(Workflow.slug == slug))
         if result.scalar_one_or_none() is None:
             db.add(
@@ -155,10 +151,10 @@ async def seed_workflows(db: AsyncSession) -> None:
                     slug=slug,
                     description=desc,
                     status=WorkflowStatus.ACTIVE,
-                    success_count=5,
+                    success_count=0,
                     failure_count=0,
-                    total_duration_ms=9000,
-                    last_execution_at=utcnow(),
+                    total_duration_ms=0,
+                    last_execution_at=None,
                 )
             )
     await db.flush()

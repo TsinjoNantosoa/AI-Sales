@@ -16,6 +16,7 @@ from app.api.v1 import (
     emails,
     integrations,
     internal,
+    internal_n8n,
     leads,
     notifications,
     public,
@@ -43,4 +44,5 @@ api_router.include_router(audit_logs.router)
 api_router.include_router(emails.router)
 api_router.include_router(webhooks.router)
 api_router.include_router(internal.router)
+api_router.include_router(internal_n8n.router)
 api_router.include_router(public.router)

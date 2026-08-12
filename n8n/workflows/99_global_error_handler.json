@@ -1,0 +1,82 @@
+{
+  "name": "AI Sales \u2014 Global Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "dc290e66-3220-4ef1-8d7c-a73624b53b3a",
+      "name": "01 Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/executions/failure-report",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflow: $json.workflow, execution: $json.execution, errorMessage: $json.execution.error.message }) }}"
+      },
+      "id": "fc322bf5-a46e-471b-b42d-7a58c894ae58",
+      "name": "03 Report Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CONFIGURE_AI_SALES_INTERNAL_API",
+          "name": "AI Sales Backend Internal API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "01 Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "03 Report Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [
+    {
+      "name": "ai-sales"
+    }
+  ]
+}

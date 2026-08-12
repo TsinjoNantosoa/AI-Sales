@@ -27,6 +27,7 @@ REQUIRED_TABLES = {
     "lead_score_history",
     "refresh_tokens",
     "workflows",
+    "automation_events",
 }
 
 
@@ -148,13 +149,16 @@ async def test_alembic_upgrade_downgrade_on_empty_database():
     missing = REQUIRED_TABLES - tables
     assert not missing, f"Missing tables after upgrade: {sorted(missing)}"
 
+    # downgrade -1 steps back from 002 → 001; core tables remain, outbox is dropped
     downgrade = _run_alembic("downgrade", "-1")
     assert downgrade.returncode == 0, downgrade.stdout + "\n" + downgrade.stderr
 
     tables_after_down = await _list_tables()
-    # Full initial revision downgrade drops business tables
-    assert "leads" not in tables_after_down
-    assert "users" not in tables_after_down
+    # Stepped back to revision 001 — business tables still present
+    assert "leads" in tables_after_down
+    assert "users" in tables_after_down
+    # The outbox table added by 002 must be gone
+    assert "automation_events" not in tables_after_down
 
     upgrade_again = _run_alembic("upgrade", "head")
     assert upgrade_again.returncode == 0, upgrade_again.stdout + "\n" + upgrade_again.stderr
@@ -163,7 +167,7 @@ async def test_alembic_upgrade_downgrade_on_empty_database():
     missing_final = REQUIRED_TABLES - tables_final
     assert not missing_final, f"Missing tables after second upgrade: {sorted(missing_final)}"
 
-    # Sanity: alembic reports current head
+    # Sanity: alembic reports current head (002)
     current = _run_alembic("current")
     assert current.returncode == 0, current.stdout + "\n" + current.stderr
-    assert re.search(r"\b001\b", current.stdout + current.stderr)
+    assert re.search(r"\b002\b", current.stdout + current.stderr)

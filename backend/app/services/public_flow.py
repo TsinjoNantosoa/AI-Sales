@@ -301,6 +301,8 @@ class PublicFlowService:
             )
             self.db.add(assistant)
         else:
+            prev_score = int(lead.score or 0)
+            prev_temp = str(lead.temperature or "COLD")
             result = await run_agent(
                 self.db, conversation=conv, lead=lead, user_message=content
             )
@@ -318,6 +320,21 @@ class PublicFlowService:
                 metadata_json=result.message_metadata(),
             )
             self.db.add(assistant)
+            conv.updated_at = utcnow()
+            lead.last_interaction_at = utcnow()
+            await self.db.flush()
+            lead = await self._get_lead(lead.id)
+            from app.services.automation_hooks import emit_post_qualification_events
+
+            await emit_post_qualification_events(
+                self.db,
+                lead=lead,
+                conversation_id=conv.id,
+                result=result,
+                previous_score=prev_score,
+                previous_temperature=prev_temp,
+                trace_id=result.trace_id,
+            )
 
         conv.updated_at = utcnow()
         lead.last_interaction_at = utcnow()
@@ -384,6 +401,8 @@ class PublicFlowService:
             self.db.add(assistant)
             await self.db.flush()
         else:
+            prev_score = int(lead.score or 0)
+            prev_temp = str(lead.temperature or "COLD")
             result = await run_agent(
                 self.db, conversation=conv, lead=lead, user_message=answer
             )
@@ -402,6 +421,18 @@ class PublicFlowService:
             )
             self.db.add(assistant)
             await self.db.flush()
+            lead = await self._get_lead(resolved_lead_id)
+            from app.services.automation_hooks import emit_post_qualification_events
+
+            await emit_post_qualification_events(
+                self.db,
+                lead=lead,
+                conversation_id=conv.id,
+                result=result,
+                previous_score=prev_score,
+                previous_temperature=prev_temp,
+                trace_id=result.trace_id,
+            )
 
         conv = await self._get_conversation(conversation_id)
         lead = await self._get_lead(resolved_lead_id)
@@ -579,4 +610,12 @@ class PublicFlowService:
         )
 
         await self.db.flush()
+
+        from app.services.automation_events import AutomationEventService
+
+        await AutomationEventService(self.db).emit_appointment_created(
+            appointment_id=appt.id,
+            lead_id=lead.id,
+            assigned_user_id=assigned_uuid,
+        )
         return appointment_to_out(appt)

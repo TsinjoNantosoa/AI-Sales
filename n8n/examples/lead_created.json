@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "eventId": "00000000-0000-4000-8000-000000000001",
+  "eventType": "lead.created",
+  "occurredAt": "2026-08-12T10:00:00Z",
+  "correlationId": "00000000-0000-4000-8000-000000000001",
+  "source": "ai-sales-api",
+  "leadId": "00000000-0000-4000-8000-00000000a101",
+  "conversationId": null,
+  "appointmentId": null,
+  "payload": {
+    "leadId": "00000000-0000-4000-8000-00000000a101"
+  }
+}

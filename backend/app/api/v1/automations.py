@@ -49,3 +49,12 @@ async def test_workflow(
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> WorkflowExecutionOut:
     return await AutomationService(db).test(workflow_id, current_user)
+
+
+@router.post("/executions/{execution_id}/retry", response_model=WorkflowExecutionOut)
+async def retry_execution(
+    execution_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> WorkflowExecutionOut:
+    return await AutomationService(db).retry_execution(execution_id, current_user)

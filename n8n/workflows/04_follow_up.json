@@ -1,0 +1,140 @@
+{
+  "name": "AI Sales \u2014 Follow-up",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "0f2171ad-cc5d-4182-a4ea-efaaa09b3a1a",
+      "name": "01 Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/follow-ups/due",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "8a6c3da3-5309-4bef-9ed2-fd6924375ed5",
+      "name": "03 Get Due Follow-ups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CONFIGURE_AI_SALES_INTERNAL_API",
+          "name": "AI Sales Backend Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/follow-ups/{{ $json.leadId }}/execute",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ idempotencyKey: $json.idempotencyKey }) }}"
+      },
+      "id": "ee96dbd5-2fbc-47fd-a774-9e43abe101d9",
+      "name": "05 Execute Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CONFIGURE_AI_SALES_INTERNAL_API",
+          "name": "AI Sales Backend Internal API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "01 Schedule": {
+      "main": [
+        [
+          {
+            "node": "03 Get Due Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 Get Due Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "05 Execute Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [
+    {
+      "name": "ai-sales"
+    }
+  ]
+}

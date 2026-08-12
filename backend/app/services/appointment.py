@@ -169,6 +169,14 @@ class AppointmentService:
             related_type="appointment",
         )
         await self.db.flush()
+
+        from app.services.automation_events import AutomationEventService
+
+        await AutomationEventService(self.db).emit_appointment_created(
+            appointment_id=appt.id,
+            lead_id=lead.id,
+            assigned_user_id=assigned,
+        )
         return appointment_to_out(appt)
 
     async def update(

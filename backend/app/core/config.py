@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     n8n_api_key: str = ""
     n8n_webhook_secret: str = "dev-n8n-webhook-secret"
     n8n_enabled: bool = False
+    n8n_public_url: str = ""
+    n8n_dispatch_poll_seconds: int = 30
+    backend_internal_url: str = "http://backend:8000"
 
     google_client_id: str = ""
     google_client_secret: str = ""

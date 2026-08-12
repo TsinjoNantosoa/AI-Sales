@@ -221,6 +221,10 @@ class LeadService:
         lead.updated_at = utcnow()
         # reload tags
         lead = await self._get_lead(lead.id)
+
+        from app.services.automation_events import AutomationEventService
+
+        await AutomationEventService(self.db).emit_lead_created(lead.id)
         return lead_to_out(lead)
 
     async def update_lead(self, lead_id: uuid.UUID, data: LeadUpdate, user: CurrentUser) -> LeadOut:

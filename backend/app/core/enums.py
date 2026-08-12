@@ -126,6 +126,13 @@ class ExecutionStatus(StrEnum):
     WAITING = "Waiting"
 
 
+class AutomationEventStatus(StrEnum):
+    PENDING = "pending"
+    DISPATCHING = "dispatching"
+    DISPATCHED = "dispatched"
+    FAILED = "failed"
+
+
 class IntegrationStatus(StrEnum):
     CONNECTED = "connected"
     AVAILABLE = "available"

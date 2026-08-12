@@ -9,13 +9,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import CurrentUser
 from app.core.config import get_settings
-from app.core.enums import ExecutionStatus, WorkflowStatus
+from app.core.enums import WorkflowStatus
 from app.core.exceptions import NotFoundError
+from app.core.logging import get_logger
 from app.core.permissions import ensure_permission
 from app.integrations.automation_provider import get_automation_provider
+from app.integrations.n8n_events import WORKFLOW_TEST
 from app.models.workflow import Workflow, WorkflowExecution
 from app.schemas.dashboard import WorkflowExecutionOut, WorkflowOut
-from app.utils import to_iso, utcnow
+from app.services.n8n_execution import N8nExecutionService
+from app.utils import to_iso
+
+logger = get_logger(__name__)
 
 
 def _fmt_duration(ms: int | None) -> str:
@@ -103,37 +108,53 @@ class AutomationService:
             raise NotFoundError("Workflow not found")
 
         settings = get_settings()
-        if not settings.n8n_enabled:
-            provider = get_automation_provider(self.db)
-            await provider.trigger(
-                "workflow.test",
-                {"workflow_id": w.id, "trigger": "manual_test"},
-            )
-            exec_result = await self.db.execute(
-                select(WorkflowExecution)
-                .where(WorkflowExecution.workflow_id == w.id)
-                .order_by(WorkflowExecution.started_at.desc())
-                .limit(1)
-            )
-            exec_row = exec_result.scalar_one_or_none()
-            if exec_row is not None:
-                await self.db.refresh(w)
-                return execution_to_out(exec_row, w.name)
-
-        started = utcnow()
-        exec_row = WorkflowExecution(
-            workflow_id=w.id,
-            status=ExecutionStatus.SUCCESS,
-            started_at=started,
-            finished_at=started,
-            duration_ms=1800,
-            retry_count=0,
-            input_json={"trigger": "manual_test"},
-            output_json={"ok": True},
+        test_event_id = str(uuid.uuid4())
+        provider = get_automation_provider(self.db)
+        trigger_result = await provider.trigger(
+            WORKFLOW_TEST,
+            {
+                "workflowId": str(w.id),
+                "workflowSlug": w.slug,
+                "eventId": test_event_id,
+                "trigger": "manual_test",
+            },
         )
-        self.db.add(exec_row)
-        w.success_count = (w.success_count or 0) + 1
-        w.total_duration_ms = (w.total_duration_ms or 0) + 1800
-        w.last_execution_at = started
-        await self.db.flush()
-        return execution_to_out(exec_row, w.name)
+
+        if settings.n8n_enabled:
+            row, duplicate, enabled = await N8nExecutionService(self.db).start_execution(
+                workflow_slug=w.slug,
+                event_id=test_event_id,
+                input_data={"trigger": "manual_test", "workflowId": str(w.id)},
+            )
+            if not enabled:
+                return execution_to_out(row, w.name)
+            logger.info(
+                "automation_test_n8n",
+                workflow_id=str(w.id),
+                execution_id=str(row.id),
+                duplicate=duplicate,
+                trigger=trigger_result,
+            )
+            return execution_to_out(row, w.name)
+
+        exec_result = await self.db.execute(
+            select(WorkflowExecution)
+            .where(WorkflowExecution.workflow_id == w.id)
+            .order_by(WorkflowExecution.started_at.desc())
+            .limit(1)
+        )
+        exec_row = exec_result.scalar_one_or_none()
+        if exec_row is not None:
+            await self.db.refresh(w)
+            return execution_to_out(exec_row, w.name)
+        raise NotFoundError("Test execution was not created")
+
+    async def retry_execution(
+        self, execution_id: uuid.UUID, user: CurrentUser
+    ) -> WorkflowExecutionOut:
+        ensure_permission(user.role, "automations:write")
+        row = await N8nExecutionService(self.db).retry_execution(execution_id)
+        workflow = (
+            await self.db.execute(select(Workflow).where(Workflow.id == row.workflow_id))
+        ).scalar_one()
+        return execution_to_out(row, workflow.name)

@@ -292,6 +292,8 @@ class ConversationService:
         conv = await self._get_conversation(conv_id)
         await self._assert_access(conv, user)
         lead = await self._get_lead(conv.lead_id)
+        prev_score = int(lead.score or 0)
+        prev_temp = str(lead.temperature or "COLD")
 
         # Persist user turn
         self.db.add(
@@ -322,6 +324,19 @@ class ConversationService:
         self.db.add(msg)
         conv.updated_at = utcnow()
         await self.db.flush()
+
+        from app.services.automation_hooks import emit_post_qualification_events
+
+        lead = await self._get_lead(conv.lead_id)
+        await emit_post_qualification_events(
+            self.db,
+            lead=lead,
+            conversation_id=conv.id,
+            result=result,
+            previous_score=prev_score,
+            previous_temperature=prev_temp,
+            trace_id=result.trace_id,
+        )
         return AiReplyResponse(message=message_to_out(msg))
 
     async def handoff(self, conv_id: uuid.UUID, user: CurrentUser | None = None) -> ConversationOut:

@@ -28,6 +28,15 @@ async def follow_up_leads(ctx: dict) -> str:
     return f"processed={processed}"
 
 
+async def dispatch_automation_events(ctx: dict) -> str:
+    """Poll automation outbox and deliver events to n8n."""
+    from app.services.automation_dispatcher import dispatch_pending_events
+
+    count = await dispatch_pending_events()
+    logger.info("worker_dispatch_automation_events", dispatched=count)
+    return f"dispatched={count}"
+
+
 async def sync_integrations(ctx: dict) -> str:
     """Placeholder for future calendar / CRM sync jobs."""
     logger.info("worker_sync_integrations")
@@ -46,10 +55,11 @@ _settings = get_settings()
 
 
 class WorkerSettings:
-    functions = [follow_up_leads, sync_integrations]
+    functions = [follow_up_leads, dispatch_automation_events, sync_integrations]
     on_startup = startup
     on_shutdown = shutdown
     cron_jobs = [
         cron(follow_up_leads, hour={9, 14}, minute=0),
+        cron(dispatch_automation_events, minute={0, 15, 30, 45}),
     ]
     redis_settings = RedisSettings.from_dsn(_settings.redis_url)
