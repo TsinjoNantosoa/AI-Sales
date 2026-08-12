@@ -1,0 +1,64 @@
+{
+  "name": "AI Sales Assistant \u2014 n8n Automation Layer",
+  "workflowCount": 7,
+  "targetN8nVersion": "2.32.6",
+  "sourceOfTruth": "FastAPI backend",
+  "workflows": [
+    {
+      "file": "01_lead_capture.json",
+      "slug": "lead-capture",
+      "trigger": "webhook",
+      "eventType": "lead.created",
+      "path": "lead-created"
+    },
+    {
+      "file": "02_ai_qualification.json",
+      "slug": "ai-qualification",
+      "trigger": "webhook",
+      "eventType": "lead.qualification.updated",
+      "path": "qualification-updated"
+    },
+    {
+      "file": "03_hot_lead_alert.json",
+      "slug": "hot-lead-alert",
+      "trigger": "webhook",
+      "eventType": "lead.hot",
+      "path": "hot-lead-alert"
+    },
+    {
+      "file": "04_follow_up.json",
+      "slug": "follow-up",
+      "trigger": "schedule",
+      "intervalMinutes": 30
+    },
+    {
+      "file": "05_appointment_booking.json",
+      "slug": "appointment-booking",
+      "trigger": "webhook",
+      "eventType": "appointment.created",
+      "path": "appointment-created"
+    },
+    {
+      "file": "06_meeting_reminder.json",
+      "slug": "meeting-reminder",
+      "trigger": "schedule",
+      "intervalMinutes": 30
+    },
+    {
+      "file": "99_global_error_handler.json",
+      "slug": "global-error-handler",
+      "trigger": "error"
+    }
+  ],
+  "requiredN8nEnvironment": [
+    "N8N_BLOCK_ENV_ACCESS_IN_NODE=false",
+    "AI_SALES_BACKEND_URL",
+    "INTERNAL_API_KEY",
+    "N8N_WEBHOOK_SECRET"
+  ],
+  "externalCredentialsRequiredNow": [],
+  "externalCredentialsDeferred": [
+    "Google Calendar OAuth",
+    "email provider"
+  ]
+}

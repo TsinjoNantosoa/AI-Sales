@@ -362,6 +362,22 @@ class N8nInternalService:
             raise NotFoundError("Appointment not found")
         lead = await self._get_lead(appt.lead_id)
 
+        # Per-effect idempotency: if this event_id was already processed, stop
+        if event_id:
+            from app.models.activity import Activity
+
+            existing_act = (
+                await self.db.execute(
+                    select(Activity).where(
+                        Activity.lead_id == lead.id,
+                        Activity.type == ActivityType.APPOINTMENT,
+                        Activity.metadata_json["eventId"].astext == event_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing_act is not None:
+                return {"duplicate": True, "appointmentId": str(appt.id)}
+
         calendar = await self.sync_appointment_calendar(appointment_id)
 
         existing_task = await self.db.execute(

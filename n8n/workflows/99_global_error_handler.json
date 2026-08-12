@@ -1,23 +1,44 @@
 {
-  "name": "AI Sales \u2014 Global Error Handler",
+  "name": "AI Sales — Global Error Handler",
   "nodes": [
     {
+      "parameters": {
+        "content": "# Global Error Handler\nAttach this workflow as the Error Workflow for workflows 01–06 after import. It reports a sanitized failure to FastAPI.\n\nThe integration phase must correlate `externalExecutionId` back to the existing `WorkflowExecution` rather than creating a second row.",
+        "height": 320,
+        "width": 640
+      },
+      "id": "e0bf8ce6-6665-57b1-92ad-f2218ff0ffd1",
+      "name": "README — Error Handler",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -10,
+        -80
+      ]
+    },
+    {
       "parameters": {},
-      "id": "dc290e66-3220-4ef1-8d7c-a73624b53b3a",
+      "id": "23f24720-d9ba-58d2-b3f9-6f56b3ea718b",
       "name": "01 Error Trigger",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
-      "position": [200, 300]
+      "position": [
+        0,
+        300
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const d = $input.item.json;\nconst workflow = d.workflow || {};\nconst execution = d.execution || {};\nconst error = execution.error || {};\nreturn [{\n  json: {\n    workflowId: workflow.id,\n    workflowName: workflow.name,\n    executionId: execution.id,\n    failedNode: error.node,\n    errorType: error.name,\n    errorMessage: (error.message || '').substring(0, 500),\n    timestamp: new Date().toISOString(),\n    correlationId: null,\n    eventId: null\n  }\n}];"
+        "jsCode": "const d = $input.first().json;\nconst workflow = d.workflow || {};\nconst execution = d.execution || {};\nconst error = execution.error || d.error || {};\nreturn [{ json: {\n  workflowId: workflow.id || null,\n  workflowName: workflow.name || null,\n  executionId: execution.id || null,\n  failedNode: error.node?.name || error.node || null,\n  errorType: error.name || 'WorkflowError',\n  errorMessage: String(error.message || d.message || 'Unknown workflow error').slice(0, 1000),\n  timestamp: new Date().toISOString()\n} }];"
       },
-      "id": "n99-normalize",
+      "id": "09d29bf5-3c28-581e-b745-d57c9cdfc4f4",
       "name": "02 Normalize Error",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 300]
+      "position": [
+        240,
+        300
+      ]
     },
     {
       "parameters": {
@@ -26,32 +47,66 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "X-Internal-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
-        "options": { "timeout": 30000 },
+        "options": {
+          "timeout": 30000
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ workflow: { id: $json.workflowId, name: $json.workflowName }, execution: { id: $json.executionId }, errorMessage: $json.errorMessage, externalExecutionId: $json.executionId, failedNode: $json.failedNode, errorType: $json.errorType, timestamp: $json.timestamp }) }}"
+        "jsonBody": "={{ JSON.stringify({ workflow: { id: $json.workflowId, name: $json.workflowName }, execution: { id: $json.executionId }, errorMessage: $json.errorMessage, externalExecutionId: $json.executionId }) }}"
       },
-      "id": "fc322bf5-a46e-471b-b42d-7a58c894ae58",
+      "id": "78319dd1-54f7-5182-a3d6-d73380f13b3d",
       "name": "03 Report Failure",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [640, 300]
+      "position": [
+        500,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "connections": {
     "01 Error Trigger": {
-      "main": [[{ "node": "02 Normalize Error", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "02 Normalize Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "02 Normalize Error": {
-      "main": [[{ "node": "03 Report Failure", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "03 Report Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
+  "pinData": {},
   "active": false,
-  "settings": { "executionOrder": "v1" },
-  "meta": { "templateCredsSetupCompleted": false },
-  "tags": [{ "name": "ai-sales" }]
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
 }

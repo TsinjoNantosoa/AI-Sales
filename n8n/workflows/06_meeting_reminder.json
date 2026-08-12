@@ -1,27 +1,53 @@
 {
-  "name": "AI Sales \u2014 Meeting Reminder",
+  "name": "AI Sales — Meeting Reminder",
   "nodes": [
     {
       "parameters": {
-        "rule": {
-          "interval": [{ "field": "minutes", "minutesInterval": 30 }]
-        }
+        "content": "# Meeting Reminder\nPolls upcoming appointments and asks FastAPI to send each reminder exactly once.\n\nTimezone and appointment truth remain in the backend.",
+        "height": 300,
+        "width": 580
       },
-      "id": "0931e3ee-9593-460f-9672-b769c61ad4fd",
-      "name": "01 Schedule",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [200, 300]
+      "id": "1c4611ae-179d-5254-9153-58bd97614eb8",
+      "name": "README — AI Sales — Meeting Reminder",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -10,
+        -80
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const runId = `meeting-reminder-${Date.now()}`;\nreturn [{ json: { runId, startedAt: new Date().toISOString() } }];"
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
       },
-      "id": "n06-ctx",
+      "id": "b187ae21-22e1-5d9e-8b58-9d1ac6b55729",
+      "name": "01 Schedule Every 30 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst bucket = new Date(now);\nbucket.setSeconds(0, 0);\nbucket.setMinutes(Math.floor(bucket.getMinutes() / 30) * 30);\nreturn [{ json: { runId: 'meeting-reminder-' + bucket.toISOString(), startedAt: now.toISOString() } }];"
+      },
+      "id": "ebd5c5c1-1e37-5f64-9728-de55661b665e",
       "name": "02 Create Run Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 300]
+      "position": [
+        220,
+        300
+      ]
     },
     {
       "parameters": {
@@ -30,20 +56,100 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "X-Internal-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
-        "options": { "timeout": 30000 },
+        "options": {
+          "timeout": 30000
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ workflowSlug: 'meeting-reminder', eventId: $json.runId, externalExecutionId: $execution.id, input: { runId: $json.runId, startedAt: $json.startedAt } }) }}"
       },
-      "id": "n06-reg",
+      "id": "7accec44-fdea-540a-a602-92ceb586beb3",
       "name": "03 Register Execution",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [640, 300]
+      "position": [
+        460,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b1608737-230f-5ad3-9405-fb0227bd6643",
+              "leftValue": "={{ $json.duplicate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e0099c47-0359-5ddb-bee9-25401edd14f2",
+      "name": "04 Duplicate Run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9941e15d-654b-51d2-a3b0-f50467655921",
+              "leftValue": "={{ $json.workflowEnabled }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3c8b44f6-dd57-5580-84e1-6320e51dd38a",
+      "name": "05 Workflow Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        920,
+        360
+      ]
     },
     {
       "parameters": {
@@ -52,17 +158,77 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "X-Internal-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
-        "options": { "timeout": 30000 }
+        "options": {
+          "timeout": 30000
+        }
       },
-      "id": "2891f3df-e6c8-43d5-a388-a2cc6e505853",
-      "name": "04 Get Due Reminders",
+      "id": "7ec4426b-61f5-5efc-81f6-dd3d6c007066",
+      "name": "06 Fetch Due Items",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [860, 300]
+      "position": [
+        1160,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputs = $input.all();\nconst rows = [];\nfor (const item of inputs) {\n  const j = item.json;\n  if (Array.isArray(j)) rows.push(...j);\n  else if (Array.isArray(j.data)) rows.push(...j.data);\n  else if (Array.isArray(j.body)) rows.push(...j.body);\n  else if (j && j.appointmentId) rows.push(j);\n}\nif (rows.length === 0) return [{ json: { hasWork: false } }];\nreturn rows.map((row, index) => ({ json: { ...row, hasWork: true }, pairedItem: { item: Math.min(index, Math.max(inputs.length - 1, 0)) } }));"
+      },
+      "id": "c963d0cc-893a-5fb8-8351-18a1b446fd74",
+      "name": "07 Normalize Due Appointments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1390,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f55d16be-d8f9-5859-9ab9-5eaa79a4ca17",
+              "leftValue": "={{ $json.hasWork }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0de488d4-3345-5529-b8ce-78c775df5295",
+      "name": "08 Has Work?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1620,
+        300
+      ]
     },
     {
       "parameters": {
@@ -71,20 +237,34 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "X-Internal-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
-        "options": { "timeout": 30000 },
+        "options": {
+          "timeout": 30000
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ idempotencyKey: $json.idempotencyKey }) }}"
       },
-      "id": "77f38c1f-075d-4289-8f76-01158666131d",
-      "name": "05 Send Reminder",
+      "id": "5ebf7d88-31b8-57b7-9b12-6fec8662bec0",
+      "name": "09 Execute Item",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1080, 300]
+      "position": [
+        1850,
+        220
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -93,41 +273,153 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "X-Internal-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
-        "options": { "timeout": 30000 },
+        "options": {
+          "timeout": 30000
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ output: { ok: true }, externalExecutionId: $execution.id }) }}"
+        "jsonBody": "={ JSON.stringify({ externalExecutionId: $execution.id, output: { ok: true } }) }"
       },
-      "id": "n06-success",
-      "name": "06 Mark Success",
+      "id": "d07d728a-36b5-5414-9576-189c3d253690",
+      "name": "99 Mark Success",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1300, 300]
+      "position": [
+        2100,
+        340
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "executeOnce": true
     }
   ],
   "connections": {
-    "01 Schedule": {
-      "main": [[{ "node": "02 Create Run Context", "type": "main", "index": 0 }]]
+    "01 Schedule Every 30 Minutes": {
+      "main": [
+        [
+          {
+            "node": "02 Create Run Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "02 Create Run Context": {
-      "main": [[{ "node": "03 Register Execution", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "03 Register Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "03 Register Execution": {
-      "main": [[{ "node": "04 Get Due Reminders", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "04 Duplicate Run?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "04 Get Due Reminders": {
-      "main": [[{ "node": "05 Send Reminder", "type": "main", "index": 0 }]]
+    "04 Duplicate Run?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "05 Workflow Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "05 Send Reminder": {
-      "main": [[{ "node": "06 Mark Success", "type": "main", "index": 0 }]]
+    "05 Workflow Enabled?": {
+      "main": [
+        [
+          {
+            "node": "06 Fetch Due Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "06 Fetch Due Items": {
+      "main": [
+        [
+          {
+            "node": "07 Normalize Due Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07 Normalize Due Appointments": {
+      "main": [
+        [
+          {
+            "node": "08 Has Work?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 Has Work?": {
+      "main": [
+        [
+          {
+            "node": "09 Execute Item",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "99 Mark Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 Execute Item": {
+      "main": [
+        [
+          {
+            "node": "99 Mark Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
+  "pinData": {},
   "active": false,
-  "settings": { "executionOrder": "v1" },
-  "meta": { "templateCredsSetupCompleted": false },
-  "tags": [{ "name": "ai-sales" }]
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
 }

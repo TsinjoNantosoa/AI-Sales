@@ -225,13 +225,39 @@ async def failure_report(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[None, Depends(_internal_dep)],
 ) -> ExecutionActionResponse:
+    """Global Error Handler callback.
+
+    Correlates the n8n execution ID back to the existing RUNNING WorkflowExecution
+    and marks it FAILED.  Only creates a new row when no matching execution is found.
+    """
     from sqlalchemy import select
 
     from app.core.enums import ExecutionStatus
     from app.models.workflow import Workflow, WorkflowExecution
 
+    ext_id = body.external_execution_id
+
+    # --- Correlate with existing RUNNING execution ---
+    if ext_id:
+        existing = (
+            await db.execute(
+                select(WorkflowExecution).where(
+                    WorkflowExecution.external_execution_id == ext_id
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            svc = N8nExecutionService(db)
+            row = await svc.mark_failure(
+                existing.id,
+                error_message=body.error_message[:2000],
+                external_execution_id=ext_id,
+            )
+            return ExecutionActionResponse(executionId=str(row.id), status=row.status)
+
+    # --- Fallback: create a new failure row ---
     workflow_name = str(body.workflow.get("name") or "")
-    slug = workflow_name.replace("AI Sales — ", "").lower().replace(" ", "-")
+    slug = workflow_name.replace("AI Sales \u2014 ", "").lower().replace(" ", "-")
     wf = (
         await db.execute(select(Workflow).where(Workflow.slug.contains(slug.split("-")[0])))
     ).scalar_one_or_none()
@@ -243,7 +269,7 @@ async def failure_report(
         workflow_id=wf.id,
         status=ExecutionStatus.FAILED,
         error_message=body.error_message[:2000],
-        external_execution_id=body.external_execution_id,
+        external_execution_id=ext_id,
         input_json={"workflow": body.workflow, "execution": body.execution},
     )
     db.add(row)

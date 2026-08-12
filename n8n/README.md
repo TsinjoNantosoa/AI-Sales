@@ -1,286 +1,149 @@
 # AI Sales Assistant — n8n Automation Layer
 
+This folder is the **replaceable n8n layer** for the AI Sales Assistant MVP. It is designed for n8n **2.32.6** (stable release verified on 2026-07-29) and keeps FastAPI as the authoritative business layer.
+
+## What this pack covers
+
+1. **Lead Capture** — authenticated `lead.created` webhook, execution registration, duplicate/enable checks, welcome action.
+2. **AI Qualification** — observes the authoritative LangGraph result without duplicating AI/scoring logic.
+3. **HOT Lead Alert** — backend HOT verification, priority task, notification, salesperson email and activity.
+4. **Follow-up** — 30-minute schedule; FastAPI decides which leads are due and owns 24h/3d/7d rules.
+5. **Appointment Booking** — post-booking orchestration through the backend calendar/email abstractions.
+6. **Meeting Reminder** — scheduled, idempotent reminder orchestration.
+7. **Global Error Handler** — sanitizes n8n errors and reports them back to FastAPI.
+
 ## Architecture
 
-```
-FastAPI (authoritative business logic)
-   │
-   ├─ transaction commits
-   │      │
-   │      └─► automation_events (outbox table)
-   │                 │
-   │         ARQ dispatcher (every 15 min)
-   │                 │
-   └─────────────────▼
-                  n8n Webhook
-                     │
-              ┌──────▼──────┐
-              │  Workflow    │
-              │  execution   │
-              └──────┬───────┘
-                     │ HTTP Request
-                     ▼
-             FastAPI /internal/n8n/*
-                     │
-              domain services
-              (email, scoring, tasks…)
+```text
+React frontend
+      │
+      ▼
+FastAPI (source of truth)
+      │
+      ├─ LangGraph / OpenAI / scoring / RBAC / CRM
+      ├─ PostgreSQL
+      └─ transactional automation events
+                   │
+                   ▼
+                  n8n
+          ┌────────┼──────────┐
+          ▼        ▼          ▼
+      follow-up  booking   notifications
+          │        │          │
+          └────────┴──────────┘
+                   │
+                   ▼
+       FastAPI internal actions
 ```
 
-FastAPI is always the source of truth. n8n **orchestrates** — it never writes
-directly to the database or duplicates business rules.
+**No OpenAI node and no direct business-database node is used in n8n.**
 
----
+## Security model
 
-## n8n Version
+### FastAPI → n8n
 
-Pinned: **1.82.1** (`n8nio/n8n:1.82.1` in `docker-compose.yml`).
+Each event webhook must include:
 
-To upgrade: check [n8n releases](https://github.com/n8n-io/n8n/releases), review
-breaking changes in `CHANGELOG.md`, update the image tag, re-import and verify
-all workflows.
-
----
-
-## Workflows
-
-| File | Name | Trigger | Purpose |
-|------|------|---------|---------|
-| `01_lead_capture.json` | AI Sales — Lead Capture | Webhook `POST /webhook/lead-created` | Send welcome email after lead creation |
-| `02_ai_qualification.json` | AI Sales — AI Qualification | Webhook `POST /webhook/qualification-updated` | Route post-qualification: hot lead, human handoff |
-| `03_hot_lead_alert.json` | AI Sales — Hot Lead Alert | Webhook `POST /webhook/hot-lead-alert` | Priority task + notification when lead goes HOT |
-| `04_follow_up.json` | AI Sales — Follow-up | Schedule (every 30 min) | Poll due follow-ups and send via backend |
-| `05_appointment_booking.json` | AI Sales — Appointment Booking | Webhook `POST /webhook/appointment-created` | Calendar sync, confirmation email, prep task |
-| `06_meeting_reminder.json` | AI Sales — Meeting Reminder | Schedule (every 30 min) | Send reminders for upcoming appointments |
-| `99_global_error_handler.json` | AI Sales — Global Error Handler | Error Trigger | Report failures to FastAPI |
-
----
-
-## Event Types → Webhooks
-
-| Event | n8n Webhook Path | Workflow |
-|-------|-----------------|----------|
-| `lead.created` | `/webhook/lead-created` | 01 Lead Capture |
-| `lead.qualification.updated` | `/webhook/qualification-updated` | 02 AI Qualification |
-| `lead.hot` | `/webhook/hot-lead-alert` | 03 Hot Lead Alert |
-| `appointment.created` | `/webhook/appointment-created` | 05 Appointment Booking |
-
-> Events **not** dispatched to n8n:
-> - `conversation.handoff.requested` — handled inside workflow 02 via `requiresHuman` flag
-> - `appointment.cancelled` — no workflow yet
-> - Scheduled workflows use polling, not events
-
----
-
-## Idempotency
-
-Every event-driven workflow:
-1. Registers a `WorkflowExecution` via `POST /internal/n8n/executions/start`
-2. Receives `{executionId, duplicate, workflowEnabled}`
-3. If `duplicate = true` → stops immediately (no side effects)
-4. If `workflowEnabled = false` → stops immediately
-5. Otherwise → proceeds with business actions
-
-Follow-up idempotency key: `follow-up:{leadId}:{attemptNumber}`  
-Appointment idempotency: `appointment-booking:{eventId}` via `WorkflowExecution`
-
----
-
-## Authentication
-
-### FastAPI → n8n (outbound)
-
-All webhook calls include:
-- `X-Signature`: HMAC-SHA256 of body using `N8N_WEBHOOK_SECRET`
-- `X-Webhook-Timestamp`: Unix timestamp
-- `X-Event-ID`: unique event ID
-
-### n8n → FastAPI (inbound)
-
-All HTTP Request nodes use:
-- Header: `X-Internal-Key: <value of $env.INTERNAL_API_KEY>`
-
-The secret is injected via `INTERNAL_API_KEY` environment variable in `docker-compose.yml`.
-
-**After importing workflows**, create one credential:
-- **Name**: `AI Sales Backend Internal API`
-- **Type**: HTTP Header Auth
-- **Header Name**: `X-Internal-Key`
-- **Header Value**: value of `INTERNAL_API_KEY` from your `.env`
-
-Then connect that credential to every HTTP Request node and re-export.
-
----
-
-## Retry Strategy
-
-### FastAPI → n8n (dispatcher)
-
-- 4 attempts max, exponential backoff: 5s → 30s → 120s → 600s
-- Retries: timeout, network error, 429, 5xx
-- No retry: disabled workflow, duplicate event, business validation error
-
-### n8n → FastAPI (HTTP Request nodes)
-
-- Configured via n8n native "Retry On Fail" option
-- Policy: retry on timeout / 5xx only
-- No retry on 400, 401, 403, 404, 422
-
----
-
-## Follow-up Scheduler Ownership
-
-```
-N8N_ENABLED=true  → n8n Schedule Trigger (every 30 min) owns follow-ups
-                    ARQ follow_up_leads cron is disabled automatically
-
-N8N_ENABLED=false → ARQ cron (09:00 + 14:00) owns follow-ups as fallback
+```text
+X-N8N-Webhook-Key: <N8N_WEBHOOK_SECRET>
 ```
 
-Business logic stays in `FollowUpService.process_lead()` in both cases.
+The four public webhook workflows reject requests unless the header matches the secret configured in the n8n container. The existing HMAC headers may remain for tracing/upgrade, but the integration prompt must add this explicit webhook key to the FastAPI `N8nClient`.
 
----
+### n8n → FastAPI
 
-## Error Workflow
+Every HTTP Request node sends:
 
-After importing all 7 workflows, configure the **Error Workflow** for workflows
-01–06:
+```text
+X-Internal-Key: {{$env.INTERNAL_API_KEY}}
+```
 
-1. Open each workflow in n8n editor
-2. **Settings** → **Error Workflow** → select `AI Sales — Global Error Handler`
-3. Save
+FastAPI validates this before executing internal actions.
 
-The global error handler normalizes the n8n error context and calls
-`POST /internal/n8n/executions/failure-report` to update `WorkflowExecution`
-status to `FAILED` and increment `failure_count`.
+## Required n8n runtime environment
 
----
+The workflow pack currently uses `$env` for three project-scoped values. Configure env access explicitly in the self-hosted n8n container; if you later move these values into n8n Credentials, you can re-enable stricter env blocking.
 
-## Local Setup
+```env
+N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+AI_SALES_BACKEND_URL=http://backend:8000
+INTERNAL_API_KEY=<same internal key as FastAPI>
+N8N_WEBHOOK_SECRET=<long random secret, 16+ chars>
+```
 
-### Prerequisites
+No Google or email credentials are required yet. The workflows call backend abstractions, so real providers can replace mock providers later without redesigning n8n.
 
-- Docker + Docker Compose
-- Copy `.env.example` → `.env` and fill in secrets
+> Production hardening note: using n8n Credentials for `X-Internal-Key` / inbound Webhook Header Auth is stricter than broad `$env` access. This pack uses environment configuration so the folder is portable before instance-specific credentials exist. The final integration pass may migrate the two shared secrets into n8n Credentials after local import.
+
+## Workflow files
+
+```text
+workflows/
+├── 01_lead_capture.json
+├── 02_ai_qualification.json
+├── 03_hot_lead_alert.json
+├── 04_follow_up.json
+├── 05_appointment_booking.json
+├── 06_meeting_reminder.json
+└── 99_global_error_handler.json
+```
+
+## Reliability guarantees in the workflow layer
+
+- event-level execution registration before side effects;
+- duplicate event stop before side effects;
+- workflow active/inactive check;
+- explicit node references instead of fragile post-request `$json.body...` references;
+- backend action idempotency keys passed where supported;
+- 3 bounded attempts on FastAPI HTTP nodes;
+- scheduled runs use a deterministic 30-minute bucket run ID;
+- scheduled workflows mark success once after all item calls finish;
+- no HOT-lead side effects in workflow 02 (workflow 03 owns them);
+- sanitized global failure reporting.
+
+## Important integration items
+
+Read [`docs/INTEGRATION_CONTRACT.md`](docs/INTEGRATION_CONTRACT.md) before running against the current backend. The pack intentionally expects a few final backend integration changes, especially the inbound webhook secret header and failure correlation.
+
+## Generate and validate
 
 ```bash
-cp backend/.env.example backend/.env
-# Edit backend/.env — set INTERNAL_API_KEY, N8N_ENCRYPTION_KEY, JWT_SECRET_KEY
-```
-
-### Start services
-
-```bash
-cd backend
-docker compose up -d
-docker compose ps
-```
-
-n8n UI: http://localhost:5678
-
----
-
-## ngrok Setup (development)
-
-When you need webhooks from the internet (e.g. testing external triggers):
-
-```bash
-ngrok http 5678
-```
-
-Update `N8N_WEBHOOK_URL` in `backend/.env` with the ngrok URL, then restart n8n:
-
-```bash
-docker compose restart n8n
-```
-
-> ⚠ The ngrok URL is **temporary** — never hardcode it in workflow JSON or Python.
-> Use `$env.AI_SALES_BACKEND_URL` in workflow expressions.
-
----
-
-## Credential Configuration
-
-After n8n is running and workflows are imported:
-
-1. Go to http://localhost:5678 → Credentials → New
-2. Select **Header Auth**
-3. Name: `AI Sales Backend Internal API`
-4. Header Name: `X-Internal-Key`
-5. Header Value: your `INTERNAL_API_KEY` from `.env`
-6. Save
-
-Then open each workflow and update every HTTP Request node to use this credential.
-
----
-
-## Import Workflows
-
-### Linux / macOS / WSL
-
-```bash
-cd n8n
-bash scripts/import_workflows.sh
-```
-
-### Windows PowerShell (manual)
-
-Open http://localhost:5678 → **Workflows** → **Import from file** for each JSON.
-
----
-
-## Export Workflows
-
-After local testing:
-
-```bash
-bash n8n/scripts/export_workflows.sh
-```
-
-Or manually via n8n UI → **⋮** → **Download** for each workflow.
-
----
-
-## Validation
-
-```bash
+python n8n/scripts/generate_workflows.py
 python n8n/scripts/validate_workflows.py
+python -m unittest discover -s n8n/tests -v
 ```
 
-Checks: all 7 files present, no secrets, no bogus credential IDs, webhook paths.
+The generator is deterministic and is the source for the checked-in JSON. Do not maintain a stale second generator.
 
----
+## Import to local n8n
 
-## Testing
-
-### Automated backend tests (no live n8n needed)
+Create an n8n API key in the local instance, then from WSL:
 
 ```bash
-cd backend
-pytest app/tests/test_automation_n8n.py -v
+export N8N_BASE_URL=http://localhost:5678
+export N8N_API_KEY='...'
+bash n8n/scripts/import_workflows.sh
 ```
 
-### Manual integration test
+Manual import also works: **Workflows → Import from File**.
 
-1. Start all services: `docker compose up -d`
-2. Import workflows into n8n
-3. Create a test lead via the frontend
-4. Verify in n8n: workflow execution appears
-5. Verify in DB: `AutomationEvent.status = DISPATCHED`, `WorkflowExecution` created
+After import, set `AI Sales — Global Error Handler` as the Error Workflow for workflows 01–06 in workflow settings.
 
----
+## ngrok
 
-## Production Considerations
+Your ngrok URL is temporary. Never place it in workflow JSON. Configure n8n's public webhook URL in Docker/runtime configuration and keep internal n8n → FastAPI traffic on the Docker network.
 
-- Use strong random values for `INTERNAL_API_KEY`, `N8N_ENCRYPTION_KEY`, `JWT_SECRET_KEY`
-- Set `WEBHOOK_URL` to your production domain (not ngrok)
-- Enable n8n authentication in production
-- Consider IP allowlisting for `/internal/n8n/*` endpoints
-- Set `EXECUTIONS_DATA_MAX_AGE` appropriately for your retention policy
+## Smoke test
 
----
+Once backend + n8n are integrated and running:
 
-## Pending integrations
+```bash
+export N8N_WEBHOOK_SECRET='...'
+python n8n/scripts/smoke_test.py --base-url http://localhost:5678
+```
 
-- **Google Calendar**: mock mode active (`GOOGLE_CALENDAR_MOCK_MODE=true`). Real credentials not required yet.
-- **Email provider**: mock mode active (`EMAIL_MOCK_MODE=true`). No SMTP/Resend/SendGrid yet.
-- **Production deployment**: not addressed in this phase.
+The test submits safe sample payloads to the four webhook workflows. It does **not** test scheduled workflows; trigger those manually in n8n or wait for the schedule.
+
+## Status boundary
+
+This folder is complete on the **n8n side**, but runtime correctness still depends on the backend integration contract and the actual local import. Google Calendar and real email provider credentials remain separate later phases.

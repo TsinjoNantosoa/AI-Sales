@@ -1,9 +1,13 @@
-"""n8n webhook client with HMAC signing and canonical event envelope."""
+"""n8n webhook client — authenticated via X-N8N-Webhook-Key shared secret.
+
+Authentication scheme matches the new pack contract (manifest.json):
+  FastAPI → n8n: X-N8N-Webhook-Key: <N8N_WEBHOOK_SECRET>
+  n8n → FastAPI: X-Internal-Key: <INTERNAL_API_KEY>
+"""
 
 from __future__ import annotations
 
 import json
-import time
 import uuid
 from typing import Any
 
@@ -11,7 +15,6 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.core.security import create_hmac_signature
 from app.integrations.n8n_events import webhook_path_for_event
 
 logger = get_logger(__name__)
@@ -21,19 +24,13 @@ class N8nClient:
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    def _headers(self, body: str, event_id: str, event_type: str) -> dict[str, str]:
-        timestamp = str(int(time.time()))
-        signature = create_hmac_signature(self.settings.n8n_webhook_secret, body)
-        headers = {
+    def _headers(self, event_id: str, event_type: str) -> dict[str, str]:
+        headers: dict[str, str] = {
             "Content-Type": "application/json",
-            "X-Signature": signature,
-            "X-Webhook-Timestamp": timestamp,
-            "X-Webhook-Signature": signature,
+            "X-N8N-Webhook-Key": self.settings.n8n_webhook_secret,
             "X-Event-ID": event_id,
             "X-Event-Type": event_type,
         }
-        if self.settings.n8n_api_key:
-            headers["X-N8N-API-KEY"] = self.settings.n8n_api_key
         return headers
 
     async def trigger_webhook(self, path: str, payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -45,7 +42,7 @@ class N8nClient:
         event_type = str(payload.get("eventType") or payload.get("event_type") or "unknown")
         body = json.dumps(payload, separators=(",", ":"), sort_keys=True)
         url = f"{self.settings.n8n_base_url.rstrip('/')}/{path.lstrip('/')}"
-        headers = self._headers(body, event_id, event_type)
+        headers = self._headers(event_id, event_type)
 
         last_error: Exception | None = None
         for attempt in range(3):

@@ -40,8 +40,8 @@ services:
       retries: 10
 
   n8n:
-    # Pinned stable release — see n8n/README.md for upgrade notes
-    image: n8nio/n8n:1.82.1
+    # Pinned stable release matching n8n/manifest.json targetN8nVersion
+    image: n8nio/n8n:2.32.6
     ports:
       - "${N8N_PORT:-5678}:5678"
     environment:
@@ -54,7 +54,7 @@ services:
       N8N_HOST: ${N8N_HOST:-localhost}
       N8N_PORT: ${N8N_PORT:-5678}
       N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
-      # Public webhook URL (ngrok in dev, real domain in prod)
+      # Public webhook URL (ngrok in dev, real domain in prod) — set at runtime, never hardcoded
       WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678/}
       N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL:-http://localhost:5678/}
       GENERIC_TIMEZONE: ${N8N_TIMEZONE:-Europe/Paris}
@@ -62,9 +62,13 @@ services:
       EXECUTIONS_DATA_PRUNE: "true"
       EXECUTIONS_DATA_MAX_AGE: "168"
       N8N_DIAGNOSTICS_ENABLED: "false"
+      # Required by workflow pack: allow $env access in Code / HTTP Request nodes
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       # Backend reachable inside Docker network
       AI_SALES_BACKEND_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
-      # Shared secret — n8n injects into $env.INTERNAL_API_KEY at runtime
+      # Shared inbound webhook secret — workflows verify X-N8N-Webhook-Key
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:-dev-n8n-webhook-secret}
+      # n8n → FastAPI service auth
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-api-key}
     volumes:
       - n8n_data:/home/node/.n8n
@@ -91,6 +95,8 @@ services:
       DATABASE_URL_SYNC: postgresql+psycopg://postgres:postgres@postgres:5432/ai_sales
       REDIS_URL: redis://redis:6379/0
       APP_ENV: development
+      # n8n is always enabled when running the full Docker stack
+      N8N_ENABLED: "true"
       N8N_BASE_URL: http://n8n:5678
       BACKEND_INTERNAL_URL: http://backend:8000
       SEED_ON_STARTUP: "true"
@@ -122,6 +128,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/ai_sales
       REDIS_URL: redis://redis:6379/0
       APP_ENV: development
+      N8N_ENABLED: "true"
       N8N_BASE_URL: http://n8n:5678
     depends_on:
       postgres:

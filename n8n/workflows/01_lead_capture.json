@@ -1,6 +1,21 @@
 {
-  "name": "AI Sales \u2014 Lead Capture",
+  "name": "AI Sales — Lead Capture",
   "nodes": [
+    {
+      "parameters": {
+        "content": "# Lead Capture\nAuthenticated `lead.created` event → idempotency → backend welcome action → execution tracking.\n\nFastAPI owns lead creation and qualification logic.",
+        "height": 280,
+        "width": 500
+      },
+      "id": "663ce8f0-8139-50f2-bf62-a1cc79b61147",
+      "name": "README — Lead Capture",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -10,
+        -80
+      ]
+    },
     {
       "parameters": {
         "httpMethod": "POST",
@@ -8,22 +23,91 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "4815093f-8650-4065-9b14-7501ac8fb65a",
+      "id": "e959bcc3-e257-5b3b-99d7-160899912ee1",
       "name": "01 Webhook Lead Created",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 300],
-      "webhookId": "8dc2f293-c038-41bd-9a78-ede2d2a69bda"
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "7e945d5f-ac6e-5ef0-8072-1fa6e5cc2233"
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.item.json.body || $input.item.json;\nreturn [{\n  json: {\n    eventId: body.eventId || body.event_id,\n    eventType: body.eventType || body.event_type,\n    leadId: body.leadId || (body.payload && body.payload.leadId),\n    correlationId: body.correlationId,\n    payload: body.payload || {}\n  }\n}];"
+        "jsCode": "const item = $input.first().json;\nconst headers = item.headers || {};\nconst expected = $env.N8N_WEBHOOK_SECRET || '';\nconst provided = headers['x-n8n-webhook-key'] || headers['X-N8N-Webhook-Key'] || '';\nreturn [{ json: { ...item, __authOk: expected.length >= 16 && provided === expected } }];"
       },
-      "id": "n01-normalize",
-      "name": "02 Normalize Event",
+      "id": "dd97f02a-aae2-5a59-9962-e169e964971b",
+      "name": "02 Verify Webhook Secret",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 300]
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1b0b641d-18de-5aeb-820c-e0517b6d910a",
+              "leftValue": "={{ $json.__authOk }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ce0345d4-6261-5f42-9d96-60de33c3a73c",
+      "name": "03 Authorized?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $input.first().json;\nconst body = source.body || source;\nconst payload = body.payload || {};\nconst out = {\n  eventId: body.eventId || body.event_id,\n  eventType: body.eventType || body.event_type,\n  correlationId: body.correlationId || body.correlation_id || null,\n  leadId: body.leadId || body.lead_id || payload.leadId || payload.lead_id || null,\n  conversationId: body.conversationId || body.conversation_id || payload.conversationId || payload.conversation_id || null,\n  appointmentId: body.appointmentId || body.appointment_id || payload.appointmentId || payload.appointment_id || null,\n  payload,\n  requiresHuman: payload.requiresHuman === true || payload.requires_human === true,\n  becameHot: payload.becameHot === true || payload.became_hot === true,\n  score: payload.score ?? null,\n  temperature: payload.temperature ?? null\n};\nif (!out.eventId) throw new Error('Missing eventId');\nif (out.eventType !== 'lead.created') throw new Error(`Unexpected eventType: ${out.eventType}`);\nfor (const field of [\"leadId\"]) { if (!out[field]) throw new Error(`Missing ${field}`); }\nreturn [{ json: out }];"
+      },
+      "id": "91e323a6-66c2-51de-93f1-ec26cbbda941",
+      "name": "04 Normalize + Validate Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: \"unauthorized\" } }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "20d9f071-bbbf-5759-8f1e-6515e613fe44",
+      "name": "03b Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        680,
+        430
+      ]
     },
     {
       "parameters": {
@@ -32,153 +116,325 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "X-Internal-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
-        "options": { "timeout": 30000 },
+        "options": {
+          "timeout": 30000
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ workflowSlug: 'lead-capture', eventId: $('02 Normalize Event').item.json.eventId, leadId: $('02 Normalize Event').item.json.leadId, correlationId: $('02 Normalize Event').item.json.correlationId, externalExecutionId: $execution.id, input: $('02 Normalize Event').item.json }) }}"
+        "jsonBody": "={{ JSON.stringify({ workflowSlug: 'lead-capture', eventId: $('04 Normalize + Validate Event').item.json.eventId, externalExecutionId: $execution.id, input: $('04 Normalize + Validate Event').item.json, leadId: $('04 Normalize + Validate Event').item.json.leadId, correlationId: $('04 Normalize + Validate Event').item.json.correlationId }) }}"
       },
-      "id": "ab68b306-ea17-40d2-875b-ae3fcb39d7cb",
-      "name": "03 Register Execution",
+      "id": "936614c5-fc6f-5fb0-8ca9-825001454b22",
+      "name": "05 Register Execution",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [640, 300]
+      "position": [
+        920,
+        220
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict" },
-          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
-              "id": "dup-check-01",
+              "id": "3310cfb4-bd32-5461-80a2-8dc6a7b74334",
               "leftValue": "={{ $json.duplicate }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
-      "id": "n01-dup",
-      "name": "04 Duplicate?",
+      "id": "38bb891a-b7f6-52c9-922c-9867dc6c3e46",
+      "name": "06 Duplicate?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [860, 300]
+      "position": [
+        1160,
+        220
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict" },
-          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
-              "id": "enabled-check-01",
+              "id": "0e671f2d-00e4-55e4-a1ea-1639f445ae22",
               "leftValue": "={{ $json.workflowEnabled }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
-      "id": "b029a6c9-b273-477e-ae54-6f21d2269a04",
-      "name": "05 Workflow Enabled?",
+      "id": "9b121fff-e167-543b-a041-068645731200",
+      "name": "07 Workflow Enabled?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1080, 220]
+      "position": [
+        1380,
+        280
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/leads/{{ $('02 Normalize Event').item.json.leadId }}/welcome",
+        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/leads/{{ $('04 Normalize + Validate Event').item.json.leadId }}/welcome",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "X-Internal-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
+        },
+        "options": {
+          "timeout": 30000
         },
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "event_id", "value": "={{ $('02 Normalize Event').item.json.eventId }}" }
+            {
+              "name": "event_id",
+              "value": "={{ $('04 Normalize + Validate Event').item.json.eventId }}"
+            }
           ]
-        },
-        "options": { "timeout": 30000 }
+        }
       },
-      "id": "0e04a72b-2755-4f29-a358-e412794d3a37",
-      "name": "06 Send Welcome",
+      "id": "995c7080-0de2-5dd7-ac11-bcdc34b19c02",
+      "name": "08 Send Welcome",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1300, 160]
+      "position": [
+        1620,
+        220
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/executions/{{ $('03 Register Execution').item.json.executionId }}/success",
+        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/executions/{{ $('05 Register Execution').item.json.executionId }}/success",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "X-Internal-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
-        "options": { "timeout": 30000 },
+        "options": {
+          "timeout": 30000
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ output: { welcome: $json }, externalExecutionId: $execution.id }) }}"
+        "jsonBody": "={ JSON.stringify({ externalExecutionId: $execution.id, output: { welcomeSent: $json.sent === true, duplicateAction: $json.duplicate === true } }) }"
       },
-      "id": "f439d74a-aa21-45dd-8574-4d6d0646f456",
-      "name": "09 Mark Success",
+      "id": "e5c7ee06-596e-596c-8b5a-af7385fe1c28",
+      "name": "99 Mark Success",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1520, 220]
+      "position": [
+        1850,
+        220
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: true, executionId: $('03 Register Execution').item.json.executionId, duplicate: $('03 Register Execution').item.json.duplicate } }}"
+        "responseBody": "={{ { ok: true, executionId: $(\"05 Register Execution\").item.json.executionId, duplicate: $(\"05 Register Execution\").item.json.duplicate, workflowEnabled: $(\"05 Register Execution\").item.json.workflowEnabled } }}",
+        "options": {
+          "responseCode": 200
+        }
       },
-      "id": "aecafcb6-e940-4238-8605-9c5d04bd4880",
-      "name": "10 Respond",
+      "id": "ed07ea3e-31c7-5988-8e22-515e382dc4c9",
+      "name": "100 Respond",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [1740, 300]
+      "typeVersion": 1.4,
+      "position": [
+        2080,
+        300
+      ]
     }
   ],
   "connections": {
     "01 Webhook Lead Created": {
-      "main": [[{ "node": "02 Normalize Event", "type": "main", "index": 0 }]]
-    },
-    "02 Normalize Event": {
-      "main": [[{ "node": "03 Register Execution", "type": "main", "index": 0 }]]
-    },
-    "03 Register Execution": {
-      "main": [[{ "node": "04 Duplicate?", "type": "main", "index": 0 }]]
-    },
-    "04 Duplicate?": {
       "main": [
-        [{ "node": "10 Respond", "type": "main", "index": 0 }],
-        [{ "node": "05 Workflow Enabled?", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "02 Verify Webhook Secret",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "05 Workflow Enabled?": {
+    "02 Verify Webhook Secret": {
       "main": [
-        [{ "node": "06 Send Welcome", "type": "main", "index": 0 }],
-        [{ "node": "10 Respond", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "03 Authorized?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "06 Send Welcome": {
-      "main": [[{ "node": "09 Mark Success", "type": "main", "index": 0 }]]
+    "03 Authorized?": {
+      "main": [
+        [
+          {
+            "node": "04 Normalize + Validate Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "03b Respond Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "09 Mark Success": {
-      "main": [[{ "node": "10 Respond", "type": "main", "index": 0 }]]
+    "04 Normalize + Validate Event": {
+      "main": [
+        [
+          {
+            "node": "05 Register Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 Register Execution": {
+      "main": [
+        [
+          {
+            "node": "06 Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "100 Respond",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "07 Workflow Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07 Workflow Enabled?": {
+      "main": [
+        [
+          {
+            "node": "08 Send Welcome",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "100 Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 Send Welcome": {
+      "main": [
+        [
+          {
+            "node": "99 Mark Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "99 Mark Success": {
+      "main": [
+        [
+          {
+            "node": "100 Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
+  "pinData": {},
   "active": false,
-  "settings": { "executionOrder": "v1" },
-  "meta": { "templateCredsSetupCompleted": false },
-  "tags": [{ "name": "ai-sales" }]
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
 }
