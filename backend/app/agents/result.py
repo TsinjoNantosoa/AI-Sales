@@ -23,6 +23,7 @@ class AgentRunResult:
     input_tokens: int | None = None
     output_tokens: int | None = None
     total_tokens: int | None = None
+    trace_id: str | None = None
 
     def message_metadata(self) -> dict[str, Any]:
         return {
@@ -34,6 +35,7 @@ class AgentRunResult:
             "openaiResponseId": self.response_id,
             "latencyMs": self.latency_ms,
             "extractedFields": self.extracted_fields,
+            "traceId": self.trace_id,
         }
 
     def as_log_dict(self) -> dict[str, Any]:

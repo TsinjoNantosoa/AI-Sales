@@ -325,25 +325,19 @@ class ConversationService:
         return AiReplyResponse(message=message_to_out(msg))
 
     async def handoff(self, conv_id: uuid.UUID, user: CurrentUser | None = None) -> ConversationOut:
+        from app.agents.handoff import request_human_handoff
+
         conv = await self._get_conversation(conv_id)
         if user is not None:
             ensure_permission(user.role, "conversations:write")
             await self._assert_access(conv, user)
-        conv.human_handoff_requested = True
-        conv.human_handoff_at = utcnow()
-        conv.status = ConversationStatus.HUMAN_HANDOFF
         lead = await self._get_lead(conv.lead_id)
-        if lead.assigned_user_id:
-            await create_notification(
-                self.db,
-                user_id=lead.assigned_user_id,
-                title="Human handoff requested",
-                message=f"{lead.first_name} {lead.last_name} needs a human agent",
-                category=NotificationCategory.LEADS,
-                related_id=str(conv.id),
-                related_type="conversation",
-            )
-        await self.db.flush()
+        await request_human_handoff(
+            self.db,
+            conversation=conv,
+            lead=lead,
+            source="crm" if user is not None else "system",
+        )
         return conversation_to_out(conv, lead=lead)
 
     async def close(self, conv_id: uuid.UUID, user: CurrentUser) -> ConversationOut:

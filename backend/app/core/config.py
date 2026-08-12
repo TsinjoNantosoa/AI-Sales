@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     ai_temperature: float = 0.2
     ai_max_retries: int = 2
     ai_timeout_seconds: int = 30
+    ai_max_history_messages: int = 20
+    ai_summary_enabled: bool = True
+    ai_context_max_chars: int = 4000
 
     n8n_base_url: str = "http://localhost:5678"
     n8n_api_key: str = ""

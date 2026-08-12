@@ -63,6 +63,51 @@ Key points:
 - List endpoints return **arrays** (not paginated envelopes)
 - Errors: `{ message, detail, error: { code, details } }`
 
+## Agent Architecture
+
+```text
+User Message
+   ↓
+LangGraph StateGraph (compiled once, ainvoke)
+   ↓
+validate_input
+   ↓
+safety_check  ──(blocked)──► persist → END
+   │            ──(unsafe+handoff)──► handoff_or_continue → persist → END
+   ↓
+load_context  (lead profile + summary + last N messages)
+   ↓
+call_openai   (structured output) / deterministic mock or fallback
+   ↓
+apply_extracted_fields  (allowlisted fields only)
+   ↓
+calculate_score         (LeadScoringService — source of truth)
+   ↓
+handoff_or_continue     (status + notification, deduped)
+   ↓
+persist                 (timestamps + rolling summary)
+   ↓
+END
+```
+
+### Controlled conversation memory
+
+```text
+Memory =
+  Lead Profile
++ Rolling Summary (Conversation.summary)
++ Last N Messages (AI_MAX_HISTORY_MESSAGES, default 20)
++ Current user message
++ Known / missing qualification fields
+```
+
+- History is loaded from PostgreSQL, scoped to `conversation_id` only.
+- The LLM never queries the database and never sets score / temperature / status.
+- Deterministic backend services remain authoritative for scoring and handoff.
+
+Relevant settings: `AI_MOCK_MODE`, `AI_MAX_HISTORY_MESSAGES`, `AI_MAX_RETRIES`,
+`AI_SUMMARY_ENABLED`, `AI_CONTEXT_MAX_CHARS`.
+
 ## Mock / simulated integrations
 
 | Integration | Default | Notes |
