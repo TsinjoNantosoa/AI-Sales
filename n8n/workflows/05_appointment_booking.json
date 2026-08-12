@@ -12,206 +12,173 @@
       "name": "01 Webhook Appointment Created",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        200,
-        300
-      ],
+      "position": [200, 300],
       "webhookId": "de21d505-cbbc-4c80-9427-6f4bc005acff"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || $input.item.json;\nconst payload = body.payload || {};\nreturn [{\n  json: {\n    eventId: body.eventId || body.event_id,\n    eventType: body.eventType,\n    leadId: body.leadId || payload.leadId,\n    appointmentId: body.appointmentId || payload.appointmentId,\n    correlationId: body.correlationId,\n    payload: payload\n  }\n}];"
+      },
+      "id": "n05-normalize",
+      "name": "02 Normalize Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/executions/start",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "X-Internal-Key",
-              "value": "={{ $env.INTERNAL_API_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
-        "options": {
-          "timeout": 30000
-        },
+        "options": { "timeout": 30000 },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ workflowSlug: 'appointment-booking', eventId: $json.body.eventId, leadId: $json.body.leadId, input: $json.body }) }}"
+        "jsonBody": "={{ JSON.stringify({ workflowSlug: 'appointment-booking', eventId: $('02 Normalize Event').item.json.eventId, leadId: $('02 Normalize Event').item.json.leadId, correlationId: $('02 Normalize Event').item.json.correlationId, externalExecutionId: $execution.id, input: $('02 Normalize Event').item.json }) }}"
       },
       "id": "5ba49707-268d-4390-9052-f18ce56a5ba9",
       "name": "03 Register Execution",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        500,
-        300
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "CONFIGURE_AI_SALES_INTERNAL_API",
-          "name": "AI Sales Backend Internal API"
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "dup-check-05",
+              "leftValue": "={{ $json.duplicate }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ]
         }
-      }
+      },
+      "id": "n05-dup",
+      "name": "04 Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "enabled-check-05",
+              "leftValue": "={{ $json.workflowEnabled }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ]
+        }
+      },
+      "id": "n05-enabled",
+      "name": "04b Workflow Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1080, 220]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/appointments/{{ $json.body.appointmentId }}/booking-actions",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/appointments/{{ $('02 Normalize Event').item.json.appointmentId }}/booking-actions",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "X-Internal-Key",
-              "value": "={{ $env.INTERNAL_API_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
-        "options": {
-          "timeout": 30000
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "event_id", "value": "={{ $('02 Normalize Event').item.json.eventId }}" }
+          ]
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ eventId: $json.body.eventId }) }}"
+        "options": { "timeout": 30000 }
       },
       "id": "fbed3de4-a2cc-49ce-8858-11c2dfb9f2d0",
       "name": "06 Booking Actions",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        740,
-        300
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "CONFIGURE_AI_SALES_INTERNAL_API",
-          "name": "AI Sales Backend Internal API"
-        }
-      }
+      "position": [1300, 160]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/executions/{{ $('03 Register Execution').item.json.executionId }}/success",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "X-Internal-Key",
-              "value": "={{ $env.INTERNAL_API_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
-        "options": {
-          "timeout": 30000
-        },
+        "options": { "timeout": 30000 },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ output: $json }) }}"
+        "jsonBody": "={{ JSON.stringify({ output: $json, externalExecutionId: $execution.id }) }}"
       },
       "id": "485fd122-f810-44d1-b400-320746ccbd54",
       "name": "09 Mark Success",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        980,
-        300
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "CONFIGURE_AI_SALES_INTERNAL_API",
-          "name": "AI Sales Backend Internal API"
-        }
-      }
+      "position": [1520, 220]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: true, executionId: $json.executionId, duplicate: $json.duplicate } }}"
+        "responseBody": "={{ { ok: true, executionId: $('03 Register Execution').item.json.executionId, duplicate: $('03 Register Execution').item.json.duplicate } }}"
       },
       "id": "eb75adae-1803-457a-b212-4a1a39f92964",
       "name": "10 Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [
-        1220,
-        300
-      ]
+      "position": [1740, 300]
     }
   ],
   "connections": {
     "01 Webhook Appointment Created": {
-      "main": [
-        [
-          {
-            "node": "03 Register Execution",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "02 Normalize Event", "type": "main", "index": 0 }]]
+    },
+    "02 Normalize Event": {
+      "main": [[{ "node": "03 Register Execution", "type": "main", "index": 0 }]]
     },
     "03 Register Execution": {
+      "main": [[{ "node": "04 Duplicate?", "type": "main", "index": 0 }]]
+    },
+    "04 Duplicate?": {
       "main": [
-        [
-          {
-            "node": "06 Booking Actions",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{ "node": "10 Respond", "type": "main", "index": 0 }],
+        [{ "node": "04b Workflow Enabled?", "type": "main", "index": 0 }]
+      ]
+    },
+    "04b Workflow Enabled?": {
+      "main": [
+        [{ "node": "06 Booking Actions", "type": "main", "index": 0 }],
+        [{ "node": "10 Respond", "type": "main", "index": 0 }]
       ]
     },
     "06 Booking Actions": {
-      "main": [
-        [
-          {
-            "node": "09 Mark Success",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "09 Mark Success", "type": "main", "index": 0 }]]
     },
     "09 Mark Success": {
-      "main": [
-        [
-          {
-            "node": "10 Respond",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "10 Respond", "type": "main", "index": 0 }]]
     }
   },
   "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "meta": {
-    "templateCredsSetupCompleted": false
-  },
-  "tags": [
-    {
-      "name": "ai-sales"
-    }
-  ]
+  "settings": { "executionOrder": "v1" },
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": [{ "name": "ai-sales" }]
 }

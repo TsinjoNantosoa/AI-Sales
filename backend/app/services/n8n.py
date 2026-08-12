@@ -75,6 +75,9 @@ class N8nClient:
 
     async def send_event(self, event_type: str, envelope: dict[str, Any]) -> dict[str, Any] | None:
         path = webhook_path_for_event(event_type)
+        if path is None:
+            logger.info("n8n_send_event_no_webhook", event_type=event_type)
+            return None
         return await self.trigger_webhook(path, envelope)
 
     async def health(self) -> dict[str, Any]:

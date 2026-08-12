@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "eventId": "evt-appt-001",
+  "eventType": "appointment.created",
+  "occurredAt": "2026-08-12T11:00:00Z",
+  "correlationId": "trace-def-456",
+  "source": "ai-sales-api",
+  "leadId": "00000000-0000-0000-0000-000000000001",
+  "appointmentId": "00000000-0000-0000-0000-000000000002",
+  "payload": {
+    "appointmentId": "00000000-0000-0000-0000-000000000002",
+    "leadId": "00000000-0000-0000-0000-000000000001",
+    "assignedUserId": "00000000-0000-0000-0000-000000000099"
+  }
+}

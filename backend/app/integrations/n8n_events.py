@@ -1,4 +1,11 @@
-"""Central mapping: business events → n8n webhooks and workflow slugs."""
+"""Central mapping: business events → n8n webhooks and workflow slugs.
+
+Only events that have a REAL n8n webhook registered appear here.
+- conversation.handoff.requested: handled inside 02_ai_qualification via requiresHuman flag.
+- appointment.cancelled: no workflow exists yet (future).
+- follow_up.due: scheduled (n8n polls /follow-ups/due), NOT webhook-based.
+- workflow.test: replaced by real-webhook test mechanism in AutomationService.
+"""
 
 from __future__ import annotations
 
@@ -6,32 +13,66 @@ from __future__ import annotations
 LEAD_CREATED = "lead.created"
 LEAD_QUALIFICATION_UPDATED = "lead.qualification.updated"
 LEAD_HOT = "lead.hot"
-CONVERSATION_HANDOFF_REQUESTED = "conversation.handoff.requested"
 APPOINTMENT_CREATED = "appointment.created"
-APPOINTMENT_CANCELLED = "appointment.cancelled"
-FOLLOW_UP_DUE = "follow_up.due"
-WORKFLOW_TEST = "workflow.test"
 
+# ---------------------------------------------------------------------------
+# Webhook path mapping — only events that have a matching n8n Webhook trigger
+# ---------------------------------------------------------------------------
 EVENT_WEBHOOK_PATHS: dict[str, str] = {
     LEAD_CREATED: "webhook/lead-created",
     LEAD_QUALIFICATION_UPDATED: "webhook/qualification-updated",
     LEAD_HOT: "webhook/hot-lead-alert",
-    CONVERSATION_HANDOFF_REQUESTED: "webhook/handoff-requested",
     APPOINTMENT_CREATED: "webhook/appointment-created",
-    APPOINTMENT_CANCELLED: "webhook/appointment-cancelled",
-    FOLLOW_UP_DUE: "webhook/follow-up-due",
-    WORKFLOW_TEST: "webhook/workflow-test",
 }
 
+# Workflow slug is used for WorkflowExecution.idempotency_key
 EVENT_WORKFLOW_SLUGS: dict[str, str] = {
     LEAD_CREATED: "lead-capture",
     LEAD_QUALIFICATION_UPDATED: "ai-qualification",
     LEAD_HOT: "hot-lead-alert",
-    CONVERSATION_HANDOFF_REQUESTED: "ai-qualification",
     APPOINTMENT_CREATED: "appointment-booking",
-    APPOINTMENT_CANCELLED: "appointment-booking",
-    FOLLOW_UP_DUE: "follow-up",
-    WORKFLOW_TEST: "lead-capture",
+}
+
+# Safe test payload factory keyed by workflow slug
+WORKFLOW_TEST_PAYLOADS: dict[str, dict] = {
+    "lead-capture": {
+        "eventType": LEAD_CREATED,
+        "leadId": "00000000-0000-0000-0000-000000000001",
+        "payload": {"leadId": "00000000-0000-0000-0000-000000000001"},
+        "trigger": "manual_test",
+    },
+    "ai-qualification": {
+        "eventType": LEAD_QUALIFICATION_UPDATED,
+        "leadId": "00000000-0000-0000-0000-000000000001",
+        "payload": {
+            "leadId": "00000000-0000-0000-0000-000000000001",
+            "score": 55,
+            "temperature": "WARM",
+            "becameHot": False,
+            "requiresHuman": False,
+        },
+        "trigger": "manual_test",
+    },
+    "hot-lead-alert": {
+        "eventType": LEAD_HOT,
+        "leadId": "00000000-0000-0000-0000-000000000001",
+        "payload": {
+            "leadId": "00000000-0000-0000-0000-000000000001",
+            "score": 85,
+            "becameHot": True,
+        },
+        "trigger": "manual_test",
+    },
+    "appointment-booking": {
+        "eventType": APPOINTMENT_CREATED,
+        "appointmentId": "00000000-0000-0000-0000-000000000002",
+        "leadId": "00000000-0000-0000-0000-000000000001",
+        "payload": {
+            "appointmentId": "00000000-0000-0000-0000-000000000002",
+            "leadId": "00000000-0000-0000-0000-000000000001",
+        },
+        "trigger": "manual_test",
+    },
 }
 
 CANONICAL_WORKFLOWS: list[tuple[str, str, str]] = [
@@ -57,9 +98,18 @@ CANONICAL_WORKFLOWS: list[tuple[str, str, str]] = [
 ]
 
 
-def webhook_path_for_event(event_type: str) -> str:
-    return EVENT_WEBHOOK_PATHS.get(event_type, f"webhook/{event_type.replace('.', '-')}")
+def webhook_path_for_event(event_type: str) -> str | None:
+    """Return the n8n webhook path for a dispatched event, or None if not mapped."""
+    return EVENT_WEBHOOK_PATHS.get(event_type)
 
 
 def workflow_slug_for_event(event_type: str) -> str | None:
     return EVENT_WORKFLOW_SLUGS.get(event_type)
+
+
+def test_payload_for_workflow(slug: str, event_id: str) -> dict | None:
+    """Return a safe test payload for a workflow slug, or None if not mapped."""
+    base = WORKFLOW_TEST_PAYLOADS.get(slug)
+    if base is None:
+        return None
+    return {**base, "eventId": event_id, "correlationId": event_id}

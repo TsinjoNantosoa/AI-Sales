@@ -12,108 +12,113 @@
       "name": "01 Webhook Hot Lead",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        200,
-        300
-      ],
+      "position": [200, 300],
       "webhookId": "5026a025-c272-4be2-a0ac-24df453fa8c3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || $input.item.json;\nconst payload = body.payload || {};\nreturn [{\n  json: {\n    eventId: body.eventId || body.event_id,\n    eventType: body.eventType,\n    leadId: body.leadId || payload.leadId,\n    correlationId: body.correlationId,\n    payload: payload\n  }\n}];"
+      },
+      "id": "n03-normalize",
+      "name": "02 Normalize Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/executions/start",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "X-Internal-Key",
-              "value": "={{ $env.INTERNAL_API_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
-        "options": {
-          "timeout": 30000
-        },
+        "options": { "timeout": 30000 },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ workflowSlug: 'hot-lead-alert', eventId: $json.body.eventId, leadId: $json.body.leadId, input: $json.body }) }}"
+        "jsonBody": "={{ JSON.stringify({ workflowSlug: 'hot-lead-alert', eventId: $('02 Normalize Event').item.json.eventId, leadId: $('02 Normalize Event').item.json.leadId, correlationId: $('02 Normalize Event').item.json.correlationId, externalExecutionId: $execution.id, input: $('02 Normalize Event').item.json }) }}"
       },
       "id": "c085f510-1f5d-4279-861c-ec532661aced",
       "name": "03 Register Execution",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        500,
-        300
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "CONFIGURE_AI_SALES_INTERNAL_API",
-          "name": "AI Sales Backend Internal API"
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "dup-check-03",
+              "leftValue": "={{ $json.duplicate }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ]
         }
-      }
+      },
+      "id": "n03-dup",
+      "name": "04 Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "enabled-check-03",
+              "leftValue": "={{ $json.workflowEnabled }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ]
+        }
+      },
+      "id": "n03-enabled",
+      "name": "04b Workflow Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1080, 220]
     },
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/leads/{{ $json.body.leadId }}/hot-check",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/leads/{{ $('02 Normalize Event').item.json.leadId }}/hot-check",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "X-Internal-Key",
-              "value": "={{ $env.INTERNAL_API_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
-        "options": {
-          "timeout": 30000
-        }
+        "options": { "timeout": 30000 }
       },
       "id": "3030efcc-2209-4695-85bf-1a01bf6be581",
       "name": "05 Hot Check",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        740,
-        300
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "CONFIGURE_AI_SALES_INTERNAL_API",
-          "name": "AI Sales Backend Internal API"
-        }
-      }
+      "position": [1300, 160]
     },
     {
       "parameters": {
         "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "typeValidation": "strict"
-          },
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
           "combinator": "and",
           "conditions": [
             {
-              "id": "ad823864-b77a-4e23-ba8e-abb95af6aab2",
+              "id": "ishot-check-03",
               "leftValue": "={{ $json.isHot }}",
               "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "true"
-              }
+              "operator": { "type": "boolean", "operation": "true" }
             }
           ]
         }
@@ -122,193 +127,104 @@
       "name": "06 Is Hot?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [
-        980,
-        300
-      ]
+      "position": [1520, 160]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/leads/{{ $('01 Webhook Hot Lead').item.json.body.leadId }}/hot-lead-actions",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/leads/{{ $('02 Normalize Event').item.json.leadId }}/hot-lead-actions",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "X-Internal-Key",
-              "value": "={{ $env.INTERNAL_API_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
-        "options": {
-          "timeout": 30000
-        },
+        "options": { "timeout": 30000 },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ eventId: $('01 Webhook Hot Lead').item.json.body.eventId }) }}"
+        "jsonBody": "={{ JSON.stringify({ eventId: $('02 Normalize Event').item.json.eventId }) }}"
       },
       "id": "0d9d6884-924d-4173-b8ce-66d8c1ff1d2d",
       "name": "07 Hot Lead Actions",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        1220,
-        300
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "CONFIGURE_AI_SALES_INTERNAL_API",
-          "name": "AI Sales Backend Internal API"
-        }
-      }
+      "position": [1740, 100]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/executions/{{ $('03 Register Execution').item.json.executionId }}/success",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "X-Internal-Key",
-              "value": "={{ $env.INTERNAL_API_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
-        "options": {
-          "timeout": 30000
-        },
+        "options": { "timeout": 30000 },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ output: $json }) }}"
+        "jsonBody": "={{ JSON.stringify({ output: $json, externalExecutionId: $execution.id }) }}"
       },
       "id": "e5f81615-8ad6-4b48-abea-0eb11feddab1",
       "name": "09 Mark Success",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        1460,
-        300
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "CONFIGURE_AI_SALES_INTERNAL_API",
-          "name": "AI Sales Backend Internal API"
-        }
-      }
+      "position": [1960, 220]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: true, executionId: $json.executionId, duplicate: $json.duplicate } }}"
+        "responseBody": "={{ { ok: true, executionId: $('03 Register Execution').item.json.executionId, duplicate: $('03 Register Execution').item.json.duplicate } }}"
       },
       "id": "f588c4b5-4045-4a23-9087-8677fbc6e82e",
       "name": "10 Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [
-        1700,
-        300
-      ]
+      "position": [2180, 300]
     }
   ],
   "connections": {
     "01 Webhook Hot Lead": {
-      "main": [
-        [
-          {
-            "node": "03 Register Execution",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "02 Normalize Event", "type": "main", "index": 0 }]]
+    },
+    "02 Normalize Event": {
+      "main": [[{ "node": "03 Register Execution", "type": "main", "index": 0 }]]
     },
     "03 Register Execution": {
+      "main": [[{ "node": "04 Duplicate?", "type": "main", "index": 0 }]]
+    },
+    "04 Duplicate?": {
       "main": [
-        [
-          {
-            "node": "05 Hot Check",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{ "node": "10 Respond", "type": "main", "index": 0 }],
+        [{ "node": "04b Workflow Enabled?", "type": "main", "index": 0 }]
+      ]
+    },
+    "04b Workflow Enabled?": {
+      "main": [
+        [{ "node": "05 Hot Check", "type": "main", "index": 0 }],
+        [{ "node": "10 Respond", "type": "main", "index": 0 }]
       ]
     },
     "05 Hot Check": {
-      "main": [
-        [
-          {
-            "node": "06 Is Hot?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "06 Is Hot?", "type": "main", "index": 0 }]]
     },
     "06 Is Hot?": {
       "main": [
-        [
-          {
-            "node": "07 Hot Lead Actions",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "10 Respond",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{ "node": "07 Hot Lead Actions", "type": "main", "index": 0 }],
+        [{ "node": "09 Mark Success", "type": "main", "index": 0 }]
       ]
     },
     "07 Hot Lead Actions": {
-      "main": [
-        [
-          {
-            "node": "09 Mark Success",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "09 Mark Success", "type": "main", "index": 0 }]]
     },
     "09 Mark Success": {
-      "main": [
-        [
-          {
-            "node": "10 Respond",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "10 Respond", "type": "main", "index": 0 }]]
     }
   },
   "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "meta": {
-    "templateCredsSetupCompleted": false
-  },
-  "tags": [
-    {
-      "name": "ai-sales"
-    }
-  ]
+  "settings": { "executionOrder": "v1" },
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": [{ "name": "ai-sales" }]
 }

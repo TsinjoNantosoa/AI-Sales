@@ -1,0 +1,14 @@
+{
+  "workflow": {
+    "id": "wf-abc",
+    "name": "AI Sales \u2014 Lead Capture"
+  },
+  "execution": {
+    "id": "exec-xyz",
+    "error": {
+      "node": "06 Send Welcome",
+      "name": "NodeConnectionError",
+      "message": "Connection refused to backend:8000"
+    }
+  }
+}

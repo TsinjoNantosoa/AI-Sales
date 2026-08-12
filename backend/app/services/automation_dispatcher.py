@@ -38,8 +38,21 @@ async def dispatch_event_row(db: AsyncSession, row: AutomationEvent) -> bool:
     row.attempt_count = (row.attempt_count or 0) + 1
     await db.flush()
 
-    client = N8nClient()
     path = webhook_path_for_event(row.event_type)
+    if path is None:
+        # No n8n webhook registered for this event type — skip silently
+        row.status = AutomationEventStatus.DISPATCHED
+        row.dispatched_at = utcnow()
+        row.last_error = f"no_webhook_mapped:{row.event_type}"
+        await db.flush()
+        logger.info(
+            "automation_dispatch_no_webhook",
+            event_id=row.event_id,
+            event_type=row.event_type,
+        )
+        return True
+
+    client = N8nClient()
     try:
         await client.trigger_webhook(path, row.payload_json)
         row.status = AutomationEventStatus.DISPATCHED

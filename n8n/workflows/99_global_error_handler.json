@@ -7,76 +7,51 @@
       "name": "01 Error Trigger",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
-      "position": [
-        200,
-        300
-      ]
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.item.json;\nconst workflow = d.workflow || {};\nconst execution = d.execution || {};\nconst error = execution.error || {};\nreturn [{\n  json: {\n    workflowId: workflow.id,\n    workflowName: workflow.name,\n    executionId: execution.id,\n    failedNode: error.node,\n    errorType: error.name,\n    errorMessage: (error.message || '').substring(0, 500),\n    timestamp: new Date().toISOString(),\n    correlationId: null,\n    eventId: null\n  }\n}];"
+      },
+      "id": "n99-normalize",
+      "name": "02 Normalize Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "={{ $env.AI_SALES_BACKEND_URL || 'http://backend:8000' }}/api/v1/internal/n8n/executions/failure-report",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "X-Internal-Key",
-              "value": "={{ $env.INTERNAL_API_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "X-Internal-Key", "value": "={{ $env.INTERNAL_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
-        "options": {
-          "timeout": 30000
-        },
+        "options": { "timeout": 30000 },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ workflow: $json.workflow, execution: $json.execution, errorMessage: $json.execution.error.message }) }}"
+        "jsonBody": "={{ JSON.stringify({ workflow: { id: $json.workflowId, name: $json.workflowName }, execution: { id: $json.executionId }, errorMessage: $json.errorMessage, externalExecutionId: $json.executionId, failedNode: $json.failedNode, errorType: $json.errorType, timestamp: $json.timestamp }) }}"
       },
       "id": "fc322bf5-a46e-471b-b42d-7a58c894ae58",
       "name": "03 Report Failure",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        500,
-        300
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "CONFIGURE_AI_SALES_INTERNAL_API",
-          "name": "AI Sales Backend Internal API"
-        }
-      }
+      "position": [640, 300]
     }
   ],
   "connections": {
     "01 Error Trigger": {
-      "main": [
-        [
-          {
-            "node": "03 Report Failure",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "02 Normalize Error", "type": "main", "index": 0 }]]
+    },
+    "02 Normalize Error": {
+      "main": [[{ "node": "03 Report Failure", "type": "main", "index": 0 }]]
     }
   },
   "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "meta": {
-    "templateCredsSetupCompleted": false
-  },
-  "tags": [
-    {
-      "name": "ai-sales"
-    }
-  ]
+  "settings": { "executionOrder": "v1" },
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": [{ "name": "ai-sales" }]
 }

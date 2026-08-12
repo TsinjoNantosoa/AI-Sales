@@ -40,7 +40,7 @@ services:
       retries: 10
 
   n8n:
-    # Pinned for reproducible imports — see n8n/README.md
+    # Pinned stable release — see n8n/README.md for upgrade notes
     image: n8nio/n8n:1.82.1
     ports:
       - "${N8N_PORT:-5678}:5678"
@@ -54,6 +54,7 @@ services:
       N8N_HOST: ${N8N_HOST:-localhost}
       N8N_PORT: ${N8N_PORT:-5678}
       N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      # Public webhook URL (ngrok in dev, real domain in prod)
       WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678/}
       N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL:-http://localhost:5678/}
       GENERIC_TIMEZONE: ${N8N_TIMEZONE:-Europe/Paris}
@@ -61,7 +62,10 @@ services:
       EXECUTIONS_DATA_PRUNE: "true"
       EXECUTIONS_DATA_MAX_AGE: "168"
       N8N_DIAGNOSTICS_ENABLED: "false"
+      # Backend reachable inside Docker network
       AI_SALES_BACKEND_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
+      # Shared secret — n8n injects into $env.INTERNAL_API_KEY at runtime
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-api-key}
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:
@@ -80,7 +84,8 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env.example
+      # Copy .env.example → .env and fill in your secrets before running
+      - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/ai_sales
       DATABASE_URL_SYNC: postgresql+psycopg://postgres:postgres@postgres:5432/ai_sales
@@ -112,7 +117,7 @@ services:
   worker:
     build: .
     env_file:
-      - .env.example
+      - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/ai_sales
       REDIS_URL: redis://redis:6379/0

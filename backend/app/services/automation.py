@@ -14,7 +14,11 @@ from app.core.exceptions import NotFoundError
 from app.core.logging import get_logger
 from app.core.permissions import ensure_permission
 from app.integrations.automation_provider import get_automation_provider
-from app.integrations.n8n_events import WORKFLOW_TEST
+from app.integrations.n8n_events import (
+    EVENT_WEBHOOK_PATHS,
+    test_payload_for_workflow,
+    webhook_path_for_event,
+)
 from app.models.workflow import Workflow, WorkflowExecution
 from app.schemas.dashboard import WorkflowExecutionOut, WorkflowOut
 from app.services.n8n_execution import N8nExecutionService
@@ -109,34 +113,53 @@ class AutomationService:
 
         settings = get_settings()
         test_event_id = str(uuid.uuid4())
-        provider = get_automation_provider(self.db)
-        trigger_result = await provider.trigger(
-            WORKFLOW_TEST,
-            {
-                "workflowId": str(w.id),
-                "workflowSlug": w.slug,
-                "eventId": test_event_id,
-                "trigger": "manual_test",
-            },
-        )
 
         if settings.n8n_enabled:
+            # Build test payload for this workflow's real webhook
+            test_payload = test_payload_for_workflow(w.slug, test_event_id)
+            if test_payload is None:
+                # Scheduled workflows (follow-up, meeting-reminder, global-error-handler)
+                # have no event-based webhook — record a local mock execution
+                row, _, _ = await N8nExecutionService(self.db).start_execution(
+                    workflow_slug=w.slug,
+                    event_id=test_event_id,
+                    input_data={"trigger": "manual_test", "mock": True},
+                )
+                return execution_to_out(row, w.name)
+
+            from app.services.n8n import N8nClient
+
+            event_type = test_payload.get("eventType", "")
+            path = webhook_path_for_event(event_type) or f"webhook/{w.slug}"
             row, duplicate, enabled = await N8nExecutionService(self.db).start_execution(
                 workflow_slug=w.slug,
                 event_id=test_event_id,
-                input_data={"trigger": "manual_test", "workflowId": str(w.id)},
+                input_data={**test_payload, "trigger": "manual_test"},
             )
-            if not enabled:
-                return execution_to_out(row, w.name)
+            if enabled and not duplicate:
+                try:
+                    await N8nClient().trigger_webhook(path, test_payload)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("automation_test_n8n_webhook_error", error=str(exc), slug=w.slug)
             logger.info(
                 "automation_test_n8n",
                 workflow_id=str(w.id),
+                slug=w.slug,
                 execution_id=str(row.id),
                 duplicate=duplicate,
-                trigger=trigger_result,
+                enabled=enabled,
             )
             return execution_to_out(row, w.name)
 
+        # N8N disabled — use local provider for mock
+        provider = get_automation_provider(self.db)
+        event_type = next(
+            (et for et, slug in EVENT_WEBHOOK_PATHS.items() if slug == w.slug), "workflow.test"
+        )
+        await provider.trigger(
+            event_type,
+            {"workflowId": str(w.id), "workflowSlug": w.slug, "eventId": test_event_id},
+        )
         exec_result = await self.db.execute(
             select(WorkflowExecution)
             .where(WorkflowExecution.workflow_id == w.id)
@@ -145,7 +168,6 @@ class AutomationService:
         )
         exec_row = exec_result.scalar_one_or_none()
         if exec_row is not None:
-            await self.db.refresh(w)
             return execution_to_out(exec_row, w.name)
         raise NotFoundError("Test execution was not created")
 

@@ -68,10 +68,6 @@ async def emit_post_qualification_events(
                 "becameHot": True,
             },
         )
-    if result.requires_human and conversation_id:
-        await events.emit_handoff_requested(
-            lead_id=lead.id,
-            conversation_id=conversation_id,
-            reason=result.recommended_action,
-            correlation_id=trace_id or result.trace_id,
-        )
+    # Human handoff is signaled via requiresHuman=true inside the
+    # lead.qualification.updated payload — workflow 02 reads it and acts.
+    # No separate handoff event is dispatched to n8n (no webhook exists for it).

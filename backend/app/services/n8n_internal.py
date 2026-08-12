@@ -248,31 +248,10 @@ class N8nInternalService:
     async def execute_follow_up(
         self, lead_id: uuid.UUID, *, idempotency_key: str | None = None
     ) -> dict[str, Any]:
-        lead = await self._get_lead(lead_id)
-        service = FollowUpService(self.db)
-        count = await service._follow_up_count(lead.id)
-        expected_key = f"follow-up:{lead.id}:{count + 1}"
-        if idempotency_key and idempotency_key != expected_key:
-            raise ValidationAppError("Follow-up idempotency key mismatch")
-
-        # Duplicate guard
-        existing = await self.db.execute(
-            select(EmailLog).where(
-                EmailLog.lead_id == lead.id,
-                EmailLog.template_slug == "follow_up",
-            ).order_by(EmailLog.created_at.desc()).limit(1)
+        """Process a follow-up for exactly this lead (not any random due lead)."""
+        return await FollowUpService(self.db).process_lead(
+            lead_id, idempotency_key=idempotency_key
         )
-        last = existing.scalar_one_or_none()
-        if last and last.created_at and last.created_at > utcnow() - timedelta(minutes=5):
-            return {"sent": False, "duplicate": True, "attempt": count}
-
-        processed = await service.process(limit=1)
-        return {
-            "sent": processed > 0,
-            "duplicate": processed == 0,
-            "attempt": count + 1 if processed else count,
-            "idempotencyKey": expected_key,
-        }
 
     async def list_reminder_candidates(self, within_minutes: int = 60) -> list[dict[str, Any]]:
         now = utcnow()

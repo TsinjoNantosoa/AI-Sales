@@ -12,9 +12,18 @@ logger = get_logger(__name__)
 
 
 async def follow_up_leads(ctx: dict) -> str:
-    """Process due follow-ups (24h / 3d / 7d) via FollowUpService."""
+    """Process due follow-ups (24h / 3d / 7d) via FollowUpService.
+
+    When N8N_ENABLED=true, n8n owns follow-up scheduling via its Schedule Trigger
+    and this ARQ job is skipped to avoid double-processing.
+    When N8N_ENABLED=false, ARQ acts as the fallback scheduler.
+    """
     from app.core.database import AsyncSessionLocal
     from app.services.follow_up import FollowUpService
+
+    if _settings.n8n_enabled:
+        logger.info("worker_follow_up_skipped_n8n_owns_scheduling")
+        return "skipped=n8n_owns_scheduling"
 
     async with AsyncSessionLocal() as session:
         try:

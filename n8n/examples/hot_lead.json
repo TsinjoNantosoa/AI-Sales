@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "eventId": "evt-hot-001",
+  "eventType": "lead.hot",
+  "occurredAt": "2026-08-12T10:05:00Z",
+  "correlationId": "trace-abc-123",
+  "source": "ai-sales-api",
+  "leadId": "00000000-0000-0000-0000-000000000001",
+  "payload": {
+    "leadId": "00000000-0000-0000-0000-000000000001",
+    "score": 85,
+    "temperature": "HOT",
+    "becameHot": true,
+    "assignedUserId": "00000000-0000-0000-0000-000000000099"
+  }
+}
