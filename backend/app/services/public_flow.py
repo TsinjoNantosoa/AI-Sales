@@ -18,7 +18,6 @@ from app.core.enums import (
     LeadStatus,
     MessageSender,
     NotificationCategory,
-    TaskStatus,
 )
 from app.core.exceptions import (
     AuthenticationError,
@@ -35,7 +34,6 @@ from app.core.public_tokens import (
 from app.models.appointment import Appointment
 from app.models.conversation import Conversation, Message
 from app.models.lead import Lead
-from app.models.task import Task
 from app.models.user import User
 from app.schemas.common import AppointmentOut
 from app.schemas.lead import LeadCreate, LeadOut
@@ -48,7 +46,6 @@ from app.schemas.public import (
 from app.services.activity import create_activity
 from app.services.appointment import BUSINESS_SLOTS, AppointmentService
 from app.services.conversation import ConversationService
-from app.services.email import EmailService
 from app.services.lead import LeadService
 from app.services.mappers import (
     appointment_to_out,
@@ -58,6 +55,7 @@ from app.services.mappers import (
 )
 from app.services.notification import create_notification
 from app.services.scoring import compute_lead_score
+from app.services.scoring_thresholds import ScoringThresholds, default_scoring_thresholds
 from app.services.settings import SettingsService
 from app.utils import utcnow
 
@@ -88,7 +86,10 @@ def _zone(name: str) -> ZoneInfo:
         return ZoneInfo("UTC")
 
 
-def _qualification_info(lead: Lead) -> QualificationInfo:
+def _qualification_info(
+    lead: Lead, thresholds: ScoringThresholds | None = None
+) -> QualificationInfo:
+    t = thresholds or default_scoring_thresholds()
     missing: list[str] = []
     if not (lead.service_interest or "").strip():
         missing.append("service_interest")
@@ -106,7 +107,7 @@ def _qualification_info(lead: Lead) -> QualificationInfo:
     progress = round(filled / len(QUALIFICATION_FIELDS), 2)
     score_data = compute_lead_score(lead)
     recommended = score_data.get("recommended_action") or "Nurture"
-    if progress >= 1.0 and lead.score >= 70:
+    if progress >= 1.0 and int(lead.score or score_data["total"]) >= t.hot_threshold:
         recommended = "Book meeting"
     elif progress >= 0.6:
         recommended = "Continue qualification"
@@ -581,32 +582,6 @@ class PublicFlowService:
             category=NotificationCategory.MEETINGS,
             related_id=str(lead.id),
             related_type="appointment",
-        )
-
-        due = utcnow() + timedelta(hours=2)
-        self.db.add(
-            Task(
-                title="Prepare meeting",
-                description=f"Prepare for meeting with {appt.lead_name} on {data.date} at {data.time}",
-                lead_id=lead.id,
-                lead_name=appt.lead_name,
-                assigned_user_id=assigned_uuid,
-                assigned_user_name=salesperson or "",
-                priority="High",
-                status=TaskStatus.TODO,
-                due_at=due,
-            )
-        )
-
-        await EmailService(self.db).send(
-            to=lead.email,
-            subject="Your meeting is confirmed",
-            body=(
-                f"Hi {lead.first_name}, your meeting on {data.date} at {data.time} "
-                f"({data.timezone}) is confirmed. Link: {meeting_url or 'TBD'}"
-            ),
-            template_slug="meeting_confirmation",
-            lead_id=str(lead.id),
         )
 
         await self.db.flush()

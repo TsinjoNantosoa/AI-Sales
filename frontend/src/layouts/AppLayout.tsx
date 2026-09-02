@@ -10,7 +10,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { TranslationPath } from "@/hooks/useTranslation";
 import { cn } from "@/lib/utils";
-import { BrandLogo } from "@/components/common/BrandLogo";
+import { BrandMark } from "@/components/common/BrandMark";
 
 const ROUTE_LABEL_KEYS: Record<string, TranslationPath> = {
   "/app/dashboard": "pages.dashboard.title",
@@ -77,7 +77,7 @@ export function AppLayout() {
           </Button>
 
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <BrandLogo variant="mark" size="sm" onLight />
+            <BrandMark size="sm" />
             <h1 className="text-sm font-semibold text-foreground truncate">{pageLabel}</h1>
           </div>
 

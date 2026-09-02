@@ -27,11 +27,10 @@ from app.services.email import EmailService
 from app.services.follow_up import FollowUpService
 from app.services.notification import create_notification
 from app.services.scoring import temperature_from_score
+from app.services.scoring_thresholds import ScoringThresholds, get_scoring_thresholds
 from app.utils import utcnow
 
 logger = get_logger(__name__)
-
-HOT_SCORE_THRESHOLD = 70
 
 
 class N8nInternalService:
@@ -49,6 +48,7 @@ class N8nInternalService:
 
     async def get_lead_context(self, lead_id: uuid.UUID) -> dict[str, Any]:
         lead = await self._get_lead(lead_id)
+        thresholds = await get_scoring_thresholds(self.db)
         return {
             "leadId": str(lead.id),
             "firstName": lead.first_name,
@@ -63,15 +63,20 @@ class N8nInternalService:
             "temperature": lead.temperature,
             "status": lead.status,
             "assignedUserId": str(lead.assigned_user_id) if lead.assigned_user_id else None,
-            "isHot": self.is_lead_hot(lead.score, lead.temperature),
-            "hotThreshold": HOT_SCORE_THRESHOLD,
+            "isHot": self.is_lead_hot(lead.score, lead.temperature, thresholds),
+            "hotThreshold": thresholds.hot_threshold,
         }
 
     @staticmethod
-    def is_lead_hot(score: int | None, temperature: str | None = None) -> bool:
+    def is_lead_hot(
+        score: int | None,
+        temperature: str | None = None,
+        thresholds: ScoringThresholds | None = None,
+    ) -> bool:
+        t = thresholds or ScoringThresholds()
         if temperature == LeadTemperature.HOT:
             return True
-        return int(score or 0) >= HOT_SCORE_THRESHOLD
+        return int(score or 0) >= t.hot_threshold
 
     async def send_welcome_email(
         self, lead_id: uuid.UUID, *, event_id: str | None = None
@@ -124,7 +129,8 @@ class N8nInternalService:
         self, lead_id: uuid.UUID, *, event_id: str | None = None
     ) -> dict[str, Any]:
         lead = await self._get_lead(lead_id)
-        if not self.is_lead_hot(lead.score, lead.temperature):
+        thresholds = await get_scoring_thresholds(self.db)
+        if not self.is_lead_hot(lead.score, lead.temperature, thresholds):
             return {"skipped": True, "reason": "not_hot", "isHot": False}
 
         idem_key = f"hot-lead:{event_id}" if event_id else None
@@ -362,7 +368,7 @@ class N8nInternalService:
             raise NotFoundError("Appointment not found")
         lead = await self._get_lead(appt.lead_id)
 
-        # Per-effect idempotency: if this event_id was already processed, stop
+        # Per-effect idempotency: skip if this event was already processed
         if event_id:
             from app.models.activity import Activity
 
@@ -378,13 +384,21 @@ class N8nInternalService:
             if existing_act is not None:
                 return {"duplicate": True, "appointmentId": str(appt.id)}
 
+        existing_email = (
+            await self.db.execute(
+                select(EmailLog).where(
+                    EmailLog.lead_id == lead.id,
+                    EmailLog.template_slug == "meeting_confirmation",
+                ).limit(1)
+            )
+        ).scalar_one_or_none()
+
         calendar = await self.sync_appointment_calendar(appointment_id)
 
         existing_task = await self.db.execute(
             select(Task).where(
                 Task.lead_id == lead.id,
                 Task.title == "Prepare meeting",
-                Task.due_at.isnot(None),
             ).limit(1)
         )
         task_created = False
@@ -403,16 +417,17 @@ class N8nInternalService:
             )
             task_created = True
 
-        await EmailService(self.db).send(
-            to=lead.email,
-            subject="Your meeting is confirmed",
-            body=(
-                f"Hi {lead.first_name}, your meeting on {appt.start_at.date()} "
-                f"is confirmed. Link: {calendar.get('meetingUrl')}"
-            ),
-            template_slug="meeting_confirmation",
-            lead_id=str(lead.id),
-        )
+        if existing_email is None:
+            await EmailService(self.db).send(
+                to=lead.email,
+                subject="Your meeting is confirmed",
+                body=(
+                    f"Hi {lead.first_name}, your meeting on {appt.start_at.date()} "
+                    f"is confirmed. Link: {calendar.get('meetingUrl')}"
+                ),
+                template_slug="meeting_confirmation",
+                lead_id=str(lead.id),
+            )
 
         if appt.assigned_user_id:
             await create_notification(

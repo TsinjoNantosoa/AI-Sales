@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  ArrowLeft, Clock, Video, Calendar, CheckCircle2, Bot, ExternalLink, ChevronLeft, ChevronRight,
+  ArrowLeft, Clock, Video, Calendar, CheckCircle2, User, ExternalLink, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -238,7 +238,7 @@ export function BookMeetingPage() {
               <p className="text-sm">America/New_York (EST)</p>
             </div>
             <div className="flex items-center gap-3">
-              <Bot className="h-5 w-5 text-primary" />
+              <User className="h-5 w-5 text-primary" />
               <p className="text-sm">With {appointment.salespersonName}</p>
             </div>
             {appointment.meetingLink && (
@@ -291,8 +291,8 @@ export function BookMeetingPage() {
         <div className="grid md:grid-cols-3 gap-6">
           <div className="md:col-span-1 bg-card rounded-xl border border-border p-5 space-y-4 h-fit">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
-                <Bot className="h-5 w-5 text-white" />
+              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                <User className="h-5 w-5 text-muted-foreground" />
               </div>
               <div>
                 <p className="font-semibold text-sm">Sarah Johnson</p>

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
-import logoFull from "@/assets/branding/ai-sales-logo.webp";
-import logoMark from "@/assets/branding/ai-sales-mark.webp";
+import logoFull from "@/assets/branding/ai-sales-logo.svg";
+import logoMark from "@/assets/branding/ai-sales-mark.svg";
 
 export const BRAND_NAME = "AI Sales Assistant";
 
@@ -11,8 +11,6 @@ export interface BrandLogoProps {
   variant?: BrandLogoVariant;
   size?: BrandLogoSize;
   className?: string;
-  /** Rounded clip on light surfaces. Does not recolor the original asset. */
-  onLight?: boolean;
   /** Navigation logos should load immediately (default). */
   priority?: boolean;
   /** `height` keeps a navbar-safe max height without stretching the asset. */
@@ -26,8 +24,8 @@ const FULL_WIDTH: Record<BrandLogoSize, string> = {
 };
 
 const MARK_BOX: Record<BrandLogoSize, string> = {
-  sm: "h-8 w-8",
-  md: "h-9 w-9",
+  sm: "h-7 w-7",
+  md: "h-8 w-8",
   lg: "h-10 w-10",
 };
 
@@ -35,7 +33,6 @@ export function BrandLogo({
   variant = "full",
   size = "md",
   className,
-  onLight = false,
   priority = true,
   constrain = "width",
 }: BrandLogoProps) {
@@ -47,7 +44,6 @@ export function BrandLogo({
       className={cn(
         "shrink-0 leading-none",
         isMark ? MARK_BOX[size] : heightFit ? "w-auto" : FULL_WIDTH[size],
-        onLight && "rounded-md overflow-hidden",
         className,
       )}
     >

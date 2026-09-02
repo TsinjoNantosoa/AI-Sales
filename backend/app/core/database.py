@@ -37,16 +37,9 @@ AsyncSessionLocal = async_sessionmaker(
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
-        session.info.setdefault("automation_pending_dispatch", [])
         try:
             yield session
             await session.commit()
-            pending = session.info.get("automation_pending_dispatch") or []
-            if pending:
-                from app.services.automation_dispatcher import dispatch_queued_event_ids
-
-                await dispatch_queued_event_ids(list(pending))
-                session.info["automation_pending_dispatch"] = []
         except Exception:
             await session.rollback()
             raise

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Bot, Send, User, Loader2, Gauge, ArrowLeft, Calendar } from "lucide-react";
+import { Send, User, Loader2, Gauge, ArrowLeft, Calendar } from "lucide-react";
+import { BrandMark } from "@/components/common/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -259,8 +260,8 @@ export function ChatPage() {
         <Link to="/" className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center">
-          <Bot className="h-4 w-4 text-white" />
+        <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center overflow-hidden p-1">
+          <BrandMark size="sm" className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm">Ava · AI Sales Assistant</p>
@@ -293,10 +294,14 @@ export function ChatPage() {
             <div key={msg.id}>
               <div className={cn("flex items-end gap-2", msg.sender === "user" ? "flex-row-reverse" : "flex-row")}>
                 <div className={cn(
-                  "h-7 w-7 rounded-full flex items-center justify-center shrink-0",
-                  msg.sender === "ai" ? "bg-primary" : "bg-muted"
+                  "h-7 w-7 rounded-full flex items-center justify-center shrink-0 overflow-hidden",
+                  msg.sender === "ai" ? "bg-primary p-0.5" : "bg-muted"
                 )}>
-                  {msg.sender === "ai" ? <Bot className="h-3.5 w-3.5 text-white" /> : <User className="h-3.5 w-3.5" />}
+                  {msg.sender === "ai" ? (
+                    <BrandMark size="sm" className="h-4 w-4" />
+                  ) : (
+                    <User className="h-3.5 w-3.5" />
+                  )}
                 </div>
                 <div className={cn(
                   "max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap",

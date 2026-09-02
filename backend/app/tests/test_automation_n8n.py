@@ -200,6 +200,52 @@ async def test_dispatch_event_marks_dispatched_when_n8n_disabled(db_engine, monk
 
 
 @pytest.mark.asyncio
+async def test_n8n_trigger_requires_internal_key():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/webhooks/n8n/trigger/lead-created",
+            json={"leadId": "00000000-0000-0000-0000-000000000001"},
+        )
+        assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_n8n_trigger_rejects_invalid_key():
+    settings = get_settings()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/webhooks/n8n/trigger/lead-created",
+            json={"leadId": "00000000-0000-0000-0000-000000000001"},
+            headers={"X-Internal-Key": "wrong-key"},
+        )
+        assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_n8n_trigger_accepts_valid_key(monkeypatch):
+    settings = get_settings()
+
+    async def _fake_trigger(_path: str, _payload: dict) -> dict:
+        return {"ok": True}
+
+    from app.services import n8n as n8n_module
+
+    monkeypatch.setattr(n8n_module.n8n_client, "trigger_webhook", _fake_trigger)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/webhooks/n8n/trigger/lead-created",
+            json={"leadId": "00000000-0000-0000-0000-000000000001"},
+            headers={"X-Internal-Key": settings.internal_api_key},
+        )
+        assert resp.status_code == 200
+        assert resp.json().get("ok") is True
+
+
+@pytest.mark.asyncio
 async def test_internal_key_required():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

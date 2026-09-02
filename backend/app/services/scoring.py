@@ -10,17 +10,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.enums import LeadTemperature
 from app.models.lead import Lead, LeadScore, LeadScoreHistory
 from app.schemas.lead import ScoreBreakdownOut
+from app.services.scoring_thresholds import (
+    ScoringThresholds,
+    default_scoring_thresholds,
+    temperature_from_score,
+)
+
+__all__ = [
+    "LeadScoringService",
+    "compute_lead_score",
+    "parse_budget_range",
+    "temperature_from_score",
+    "ScoringThresholds",
+    "default_scoring_thresholds",
+]
 
 
-def temperature_from_score(score: int) -> LeadTemperature:
-    if score >= 70:
-        return LeadTemperature.HOT
-    if score >= 40:
-        return LeadTemperature.WARM
-    return LeadTemperature.COLD
-
-
-def compute_lead_score(lead: Lead | dict[str, Any]) -> dict[str, Any]:
+def compute_lead_score(
+    lead: Lead | dict[str, Any],
+    thresholds: ScoringThresholds | None = None,
+) -> dict[str, Any]:
     """Compute score breakdown matching frontend computeLeadScore."""
 
     def g(key: str, default: Any = None) -> Any:
@@ -110,7 +119,7 @@ def compute_lead_score(lead: Lead | dict[str, Any]) -> dict[str, Any]:
     if decision_authority >= 15:
         reasoning.append("Decision maker identified")
 
-    temperature = temperature_from_score(total)
+    temperature = temperature_from_score(total, thresholds)
     recommended = "Prioritize outreach" if temperature == LeadTemperature.HOT else "Nurture"
 
     return {
@@ -145,8 +154,8 @@ class LeadScoringService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    def breakdown(self, lead: Lead) -> ScoreBreakdownOut:
-        data = compute_lead_score(lead)
+    def breakdown(self, lead: Lead, thresholds: ScoringThresholds | None = None) -> ScoreBreakdownOut:
+        data = compute_lead_score(lead, thresholds)
         return ScoreBreakdownOut(**data)
 
     async def score_and_persist(
@@ -156,8 +165,13 @@ class LeadScoringService:
         user_id: uuid.UUID | None = None,
         reason: str | None = None,
         calculated_by: str = "system",
+        thresholds: ScoringThresholds | None = None,
     ) -> tuple[Lead, dict[str, Any]]:
-        data = compute_lead_score(lead)
+        if thresholds is None:
+            from app.services.scoring_thresholds import get_scoring_thresholds
+
+            thresholds = await get_scoring_thresholds(self.db)
+        data = compute_lead_score(lead, thresholds)
         previous = lead.score or 0
         new_score = int(data["total"])
         lead.score = new_score

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.schemas.base import APIModel
 
@@ -206,6 +206,18 @@ class LeadScoringSettings(APIModel):
     hot_threshold: int = 70
     warm_threshold: int = 40
     auto_qualify_at: int = 70
+
+    @model_validator(mode="after")
+    def validate_thresholds(self) -> LeadScoringSettings:
+        if not 0 <= self.warm_threshold <= 100:
+            raise ValueError("warm_threshold must be between 0 and 100")
+        if not 0 <= self.hot_threshold <= 100:
+            raise ValueError("hot_threshold must be between 0 and 100")
+        if not 0 <= self.auto_qualify_at <= 100:
+            raise ValueError("auto_qualify_at must be between 0 and 100")
+        if self.warm_threshold >= self.hot_threshold:
+            raise ValueError("warm_threshold must be less than hot_threshold")
+        return self
 
 
 class AiAssistantSettings(APIModel):

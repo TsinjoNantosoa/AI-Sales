@@ -78,7 +78,7 @@ export function AuthLayout() {
 
       <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 bg-background">
         <Link to="/" className="lg:hidden mb-8 inline-block max-w-[200px]">
-          <BrandLogo variant="full" size="md" onLight />
+          <BrandLogo variant="full" size="md" />
         </Link>
 
         <div className="w-full max-w-sm sm:max-w-md">

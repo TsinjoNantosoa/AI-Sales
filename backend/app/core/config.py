@@ -109,12 +109,24 @@ class Settings(BaseSettings):
     def validate_for_env(self) -> None:
         """Validate required settings for the current environment."""
         if self.is_production:
-            if self.jwt_secret_key.startswith("change-me"):
-                raise RuntimeError("JWT_SECRET_KEY must be set in production")
-            if self.encryption_key.startswith("dev-"):
-                raise RuntimeError("ENCRYPTION_KEY must be set in production")
+            insecure_prefixes = ("change-me", "dev-", "test-secret", "default", "insecure")
+            checks = {
+                "JWT_SECRET_KEY": self.jwt_secret_key,
+                "ENCRYPTION_KEY": self.encryption_key,
+                "INTERNAL_API_KEY": self.internal_api_key,
+                "N8N_WEBHOOK_SECRET": self.n8n_webhook_secret,
+                "WEBHOOK_SIGNING_SECRET": self.webhook_signing_secret,
+            }
+            for name, value in checks.items():
+                lower = value.lower()
+                if any(lower.startswith(p) for p in insecure_prefixes):
+                    raise RuntimeError(f"{name} must be set to a secure value in production")
+            if len(self.n8n_webhook_secret) < 16:
+                raise RuntimeError("N8N_WEBHOOK_SECRET must be at least 16 characters in production")
             if self.debug:
                 raise RuntimeError("DEBUG must be false in production")
+            if self.docs_enabled:
+                raise RuntimeError("DOCS_ENABLED must be false in production")
 
 
 @lru_cache

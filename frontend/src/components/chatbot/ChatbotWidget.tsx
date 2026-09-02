@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bot, X, Minimize2, Send, User, Loader2, UserCheck } from "lucide-react";
+import { X, Minimize2, Send, User, Loader2, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BrandMark } from "@/components/common/BrandMark";
 import { cn } from "@/lib/utils";
 
 interface ChatMessage {
@@ -47,8 +48,8 @@ const QUALIFICATION_FLOW = [
 function TypingIndicator() {
   return (
     <div className="flex items-end gap-2">
-      <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center shrink-0">
-        <Bot className="h-3 w-3 text-white" />
+      <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center shrink-0 overflow-hidden p-0.5">
+        <BrandMark size="sm" className="h-4 w-4" priority />
       </div>
       <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1">
         <span className="typing-dot h-1.5 w-1.5 rounded-full bg-muted-foreground" />
@@ -131,7 +132,7 @@ export function ChatbotWidget() {
         <button
           type="button"
           data-chatbot
-          aria-label="Open AI chat"
+          aria-label="Open AI Sales Assistant"
           aria-expanded={false}
           onClick={() => {
             setIsOpen(true);
@@ -148,9 +149,9 @@ export function ChatbotWidget() {
             ]);
             setQualificationProgress(10);
           }}
-          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 h-14 w-14 rounded-full bg-primary text-white shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 h-14 w-14 rounded-full bg-primary text-white shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <Bot className="h-[22px] w-[22px]" aria-hidden="true" />
+          <BrandMark size="md" className="h-6 w-6" priority />
           <span className="absolute -top-0.5 -right-0.5 h-3 w-3 bg-emerald-500 rounded-full border-2 border-background" aria-hidden="true" />
         </button>
       )}
@@ -163,8 +164,8 @@ export function ChatbotWidget() {
           )}
         >
           <div className="flex items-center gap-3 p-4 border-b border-border rounded-t-2xl bg-primary text-primary-foreground">
-            <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center">
-              <Bot className="h-4 w-4" />
+            <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center overflow-hidden p-1">
+              <BrandMark size="sm" className="h-5 w-5" priority />
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold">Ava</p>
@@ -188,7 +189,7 @@ export function ChatbotWidget() {
                 size="icon"
                 className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/10"
                 onClick={() => setIsOpen(false)}
-                aria-label="Close chat"
+                aria-label="Close AI Sales Assistant"
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
@@ -218,8 +219,8 @@ export function ChatbotWidget() {
                   <div key={msg.id}>
                     <div className={cn("flex items-end gap-2", msg.sender === "user" ? "flex-row-reverse" : "flex-row")}>
                       {msg.sender === "ai" ? (
-                        <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center shrink-0">
-                          <Bot className="h-3 w-3 text-white" />
+                        <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center shrink-0 overflow-hidden p-0.5">
+                          <BrandMark size="sm" className="h-4 w-4" priority />
                         </div>
                       ) : (
                         <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center shrink-0">

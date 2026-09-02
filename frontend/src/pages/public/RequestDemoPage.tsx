@@ -149,7 +149,7 @@ export function RequestDemoPage() {
           <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6">
             <ArrowLeft className="h-4 w-4" /> Back to Home
           </Link>
-          <BrandLogo variant="full" size="md" onLight className="mb-3" />
+          <BrandLogo variant="full" size="md" className="mb-3" />
           <h1 className="text-2xl font-bold text-foreground">{t("landing.requestDemo")}</h1>
           <p className="text-muted-foreground text-sm mt-1">Tell us about your project and we'll set up a personalized demo.</p>
         </div>

@@ -29,6 +29,45 @@ docker compose up --build
 
 Set `SEED_ON_STARTUP=false` in production so the seed does not run automatically.
 
+## Architecture (automation)
+
+```text
+React frontend
+   ↓
+FastAPI (/api/v1)
+   ↓
+PostgreSQL
+
+FastAPI
+   ↓
+LangGraph / OpenAI (qualification)
+
+FastAPI
+   ↓
+Transactional outbox (automation_events)
+   ↓
+ARQ worker (dispatch_automation_events)
+   ↓
+n8n webhooks
+   ↓
+Internal callbacks (/api/v1/internal/n8n/*)
+   ↓
+Calendar / email / tasks / notifications
+```
+
+HTTP requests commit business data and outbox rows only. The ARQ worker delivers events to n8n asynchronously (no inline dispatch in `get_db`).
+
+### n8n environment variables
+
+| Variable | Purpose |
+|---|---|
+| `N8N_BASE_URL` | Backend → n8n HTTP client (Docker: `http://n8n:5678`) |
+| `N8N_WEBHOOK_URL` | Public webhook base URL injected into the n8n container |
+| `N8N_WEBHOOK_SECRET` | HMAC secret for inbound n8n webhooks |
+| `INTERNAL_API_KEY` | `X-Internal-Key` for internal/n8n callback routes |
+
+Lead scoring thresholds (`hot_threshold`, `warm_threshold`, `auto_qualify_at`) are stored in app settings and consumed by the scoring engine.
+
 ## Demo accounts
 
 | Email | Password | Role |

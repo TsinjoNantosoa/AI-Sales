@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Bot, Send, User, ArrowRightLeft, X, MessageSquare, Loader2,
+  Send, User, ArrowRightLeft, X, MessageSquare, Loader2,
   Search, ArrowLeft, MoreVertical, AlertTriangle,
 } from "lucide-react";
+import { BrandMark } from "@/components/common/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -256,8 +257,8 @@ export function ConversationsPage() {
               {selectedConv.messages.map((msg) => (
                 <div key={msg.id} className={cn("flex items-end gap-2", msg.sender === "user" ? "flex-row" : "flex-row-reverse")}>
                   {msg.sender === "ai" && (
-                    <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
-                      <Bot className="h-3.5 w-3.5 text-white" />
+                    <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm overflow-hidden p-0.5">
+                      <BrandMark size="sm" className="h-4 w-4" />
                     </div>
                   )}
                   {msg.sender === "agent" && (
@@ -293,8 +294,8 @@ export function ConversationsPage() {
               {/* Typing Indicator */}
               {isTyping && (
                 <div className="flex items-end gap-2 flex-row-reverse">
-                  <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
-                    <Bot className="h-3.5 w-3.5 text-white" />
+                  <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm overflow-hidden p-0.5">
+                    <BrandMark size="sm" className="h-4 w-4" />
                   </div>
                   <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl px-4 py-3 flex items-center gap-1 border border-blue-100 dark:border-blue-800/30">
                     <span className="typing-dot h-2 w-2 rounded-full bg-blue-500" />

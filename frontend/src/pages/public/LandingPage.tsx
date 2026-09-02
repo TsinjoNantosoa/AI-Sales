@@ -67,7 +67,6 @@ export function LandingPage() {
             <BrandLogo
               variant="full"
               size="sm"
-              onLight
               constrain="height"
               className="h-[42px] max-w-[200px]"
             />
@@ -314,7 +313,7 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col gap-6 sm:gap-4">
           <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-4">
             <Link to="/" className="shrink-0">
-              <BrandLogo variant="full" size="sm" onLight className="w-[168px] max-w-[168px]" />
+              <BrandLogo variant="full" size="sm" className="w-[168px] max-w-[168px]" />
             </Link>
             <nav className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-sm text-muted-foreground">
               <a href="#how-it-works" className="hover:text-foreground transition-colors">{t("landing.footerProduct")}</a>

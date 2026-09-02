@@ -85,7 +85,21 @@ async def dispatch_event_row(db: AsyncSession, row: AutomationEvent) -> bool:
 async def dispatch_pending_events(limit: int = 50) -> int:
     """Poll outbox for pending/retryable events."""
     now = utcnow()
+    stale_cutoff = now - timedelta(minutes=10)
     async with AsyncSessionLocal() as db:
+        # Recover stale DISPATCHING rows (worker crash)
+        stale = await db.execute(
+            select(AutomationEvent)
+            .where(
+                AutomationEvent.status == AutomationEventStatus.DISPATCHING,
+                AutomationEvent.created_at <= stale_cutoff,
+            )
+            .with_for_update(skip_locked=True)
+        )
+        for row in stale.scalars().all():
+            row.status = AutomationEventStatus.PENDING
+        await db.flush()
+
         result = await db.execute(
             select(AutomationEvent)
             .where(
@@ -97,6 +111,7 @@ async def dispatch_pending_events(limit: int = 50) -> int:
             )
             .order_by(AutomationEvent.created_at.asc())
             .limit(limit)
+            .with_for_update(skip_locked=True)
         )
         rows = list(result.scalars().all())
         ok = 0

@@ -72,17 +72,6 @@ services:
       N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:-dev-n8n-webhook-secret}
       # n8n → FastAPI service auth
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-api-key}
-      # FIDEST Outlook IA - safe local recipe profile (no Graph/LLM/email call)
-      SIMULATION_MODE: ${FIDEST_SIMULATION_MODE:-true}
-      AI_PROVIDER: ${FIDEST_AI_PROVIDER:-mock}
-      WF01_WORKFLOW_ID: ${FIDEST_WF01_WORKFLOW_ID:-UfJeYAjAqUc22xlC}
-      MAILBOX1_UPN: ${FIDEST_MAILBOX1_UPN:-mock-mailbox-1@example.invalid}
-      MAILBOX2_UPN: ${FIDEST_MAILBOX2_UPN:-mock-mailbox-2@example.invalid}
-      GRAPH_CLIENT_STATE: ${FIDEST_GRAPH_CLIENT_STATE:-LOCAL_MOCK_CLIENT_STATE_CHANGE_BEFORE_PRODUCTION}
-      ALERT_RECIPIENT: ${FIDEST_ALERT_RECIPIENT:-mock-alert-recipient@example.invalid}
-      ALERT_SENDER_ADDRESS: ${FIDEST_ALERT_SENDER_ADDRESS:-mock-alert-sender@example.invalid}
-      AI_CONFIDENCE_THRESHOLD: ${FIDEST_AI_CONFIDENCE_THRESHOLD:-0.7}
-      MAX_RETRY_COUNT: ${FIDEST_MAX_RETRY_COUNT:-3}
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:
@@ -95,9 +84,6 @@ services:
       retries: 10
       start_period: 30s
     restart: unless-stopped
-    networks:
-      - default
-      - assistant_network
 
   backend:
     build: .
@@ -157,7 +143,3 @@ volumes:
   pgdata:
   n8n_pgdata:
   n8n_data:
-
-networks:
-  assistant_network:
-    external: true

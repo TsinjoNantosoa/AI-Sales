@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from app.core.enums import LeadTemperature
 from app.services.scoring import compute_lead_score, parse_budget_range, temperature_from_score
+from app.services.scoring_thresholds import ScoringThresholds
 
 
 def test_temperature_thresholds():
-    assert temperature_from_score(10) == LeadTemperature.COLD
-    assert temperature_from_score(40) == LeadTemperature.WARM
-    assert temperature_from_score(70) == LeadTemperature.HOT
-    assert temperature_from_score(100) == LeadTemperature.HOT
+    defaults = ScoringThresholds()
+    assert temperature_from_score(10, defaults) == LeadTemperature.COLD
+    assert temperature_from_score(40, defaults) == LeadTemperature.WARM
+    assert temperature_from_score(70, defaults) == LeadTemperature.HOT
+    assert temperature_from_score(100, defaults) == LeadTemperature.HOT
 
 
 def test_compute_score_hot_profile():

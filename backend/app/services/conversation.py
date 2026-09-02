@@ -235,19 +235,22 @@ class ConversationService:
             bonus += 8
 
         score = min(100, base + bonus)
-        temperature = temperature_from_score(score)
+        from app.services.scoring_thresholds import get_scoring_thresholds
+
+        thresholds = await get_scoring_thresholds(self.db)
+        temperature = temperature_from_score(score, thresholds)
         lead.score = score
         lead.temperature = temperature
-        if score >= 70:
+        if score >= thresholds.auto_qualify_at:
             lead.status = LeadStatus.QUALIFIED
-        elif score >= 40:
+        elif score >= thresholds.warm_threshold:
             lead.status = LeadStatus.QUALIFYING
         elif lead.status == LeadStatus.NEW:
             lead.status = LeadStatus.CONTACTED
         lead.last_interaction_at = utcnow()
 
         await self.scoring.score_and_persist(
-            lead, reason=f"Qualification step {step}", calculated_by="ai"
+            lead, reason=f"Qualification step {step}", calculated_by="ai", thresholds=thresholds
         )
         lead.score = score
         lead.temperature = temperature

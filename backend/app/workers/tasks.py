@@ -69,6 +69,6 @@ class WorkerSettings:
     on_shutdown = shutdown
     cron_jobs = [
         cron(follow_up_leads, hour={9, 14}, minute=0),
-        cron(dispatch_automation_events, minute={0, 15, 30, 45}),
+        cron(dispatch_automation_events, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}),
     ]
     redis_settings = RedisSettings.from_dsn(_settings.redis_url)

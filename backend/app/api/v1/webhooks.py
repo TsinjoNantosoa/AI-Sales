@@ -9,8 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.db import get_db
 from app.core.config import get_settings
-from app.core.exceptions import AuthenticationError
+from app.core.exceptions import AuthenticationError, ValidationAppError
+from app.core.internal_auth import require_internal_api_key
 from app.core.security import verify_hmac_signature
+from app.integrations.n8n_events import EVENT_WEBHOOK_PATHS
 from app.services.n8n import n8n_client
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -34,6 +36,15 @@ async def n8n_inbound(
 
 
 @router.post("/n8n/trigger/{event}")
-async def n8n_trigger(event: str, payload: dict[str, Any]) -> dict[str, Any]:
+async def n8n_trigger(
+    event: str,
+    payload: dict[str, Any],
+    x_internal_key: Annotated[str | None, Header(alias="X-Internal-Key")] = None,
+) -> dict[str, Any]:
+    """Internal-only relay to n8n webhooks (service-to-service)."""
+    require_internal_api_key(x_internal_key)
+    allowed = {path.removeprefix("webhook/") for path in EVENT_WEBHOOK_PATHS.values()}
+    if event not in allowed:
+        raise ValidationAppError(f"Unknown n8n trigger event: {event}")
     result = await n8n_client.trigger_webhook(f"webhook/{event}", payload)
     return result or {"ok": True}

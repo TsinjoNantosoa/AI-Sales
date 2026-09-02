@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.db import get_db
-from app.api.v1.internal import _require_internal_key
+from app.core.internal_auth import require_internal_api_key
 from app.core.rate_limit import check_rate_limit
 from app.schemas.n8n_internal import (
     ExecutionActionResponse,
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/internal/n8n", tags=["internal-n8n"])
 def _internal_dep(
     x_internal_key: Annotated[str | None, Header(alias="X-Internal-Key")] = None,
 ) -> None:
-    _require_internal_key(x_internal_key)
+    require_internal_api_key(x_internal_key)
 
 
 @router.post("/executions/start", response_model=ExecutionStartResponse)
