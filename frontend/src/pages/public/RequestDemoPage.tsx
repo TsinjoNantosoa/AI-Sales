@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Loader2, ArrowRight, Bot, Calendar } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, ArrowRight, Calendar, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import { publicService } from "@/services/publicService";
 import { USE_MOCKS } from "@/lib/constants";
 import { parseBudgetRange } from "@/lib/score";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/common/BrandLogo";
 import { useTranslation } from "@/hooks/useTranslation";
 
 const SERVICES = [
@@ -148,12 +149,7 @@ export function RequestDemoPage() {
           <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6">
             <ArrowLeft className="h-4 w-4" /> Back to Home
           </Link>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <Bot className="h-5 w-5 text-white" />
-            </div>
-            <span className="font-bold text-foreground text-xl">AI Sales Assistant</span>
-          </div>
+          <BrandLogo variant="full" size="md" onLight className="mb-3" />
           <h1 className="text-2xl font-bold text-foreground">{t("landing.requestDemo")}</h1>
           <p className="text-muted-foreground text-sm mt-1">Tell us about your project and we'll set up a personalized demo.</p>
         </div>
@@ -167,7 +163,7 @@ export function RequestDemoPage() {
                 i === step ? "border-primary text-primary bg-primary/10" :
                 "border-border text-muted-foreground"
               )}>
-                {i < step ? "✓" : i + 1}
+                {i < step ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : i + 1}
               </div>
               <span className={cn("text-sm font-medium hidden sm:block", i === step ? "text-foreground" : "text-muted-foreground")}>{s}</span>
               {i < STEPS.length - 1 && <div className={cn("flex-1 h-0.5", i < step ? "bg-primary" : "bg-border")} />}

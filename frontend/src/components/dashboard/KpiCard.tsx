@@ -21,7 +21,7 @@ export function KpiCard({ title, value, change, icon: Icon, iconColor = "bg-blue
     <div className="card-hover bg-card rounded-xl border border-border p-4 sm:p-5">
       <div className="flex items-start justify-between mb-3 sm:mb-4">
         <div className={cn("h-9 w-9 sm:h-10 sm:w-10 rounded-lg flex items-center justify-center shrink-0", iconColor)}>
-          <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" strokeWidth={1.75} />
         </div>
         {tooltip && (
           <TooltipProvider>

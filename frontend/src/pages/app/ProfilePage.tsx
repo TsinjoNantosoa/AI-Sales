@@ -270,7 +270,9 @@ export function ProfilePage() {
             <h3 className="font-semibold">Calendar Connection</h3>
             <div className="flex items-center justify-between p-4 rounded-lg border border-border">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-900/20 flex items-center justify-center text-xl">📅</div>
+                <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
+                  <Calendar className="h-5 w-5 text-green-700 dark:text-green-400" aria-hidden="true" />
+                </div>
                 <div>
                   <p className="font-medium text-sm">Google Calendar</p>
                   <p className="text-xs text-muted-foreground">

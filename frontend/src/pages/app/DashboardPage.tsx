@@ -89,9 +89,9 @@ export function DashboardPage() {
           <h1 className="page-title">{t("pages.dashboard.title")}</h1>
           <p className="page-subtitle">{t("pages.dashboard.subtitle")}</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 self-start sm:self-auto">
-          <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse-soft" />
-          Live · Just now
+        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-full border border-border self-start sm:self-auto">
+          <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+          Live data
         </div>
       </div>
 

@@ -1,16 +1,17 @@
 import { useNotifications } from "@/hooks/useNotifications";
-import { Bell, Users, Calendar, CheckSquare, Zap, Settings, Trash2, CheckCheck } from "lucide-react";
+import { Bell, Users, Calendar, CheckSquare, Workflow, Settings, Trash2, CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn, timeAgo } from "@/lib/utils";
 import type { NotificationCategory } from "@/types";
+import { EmptyState } from "@/components/common/EmptyState";
 import { useTranslation } from "@/hooks/useTranslation";
 
 const CATEGORY_ICONS: Record<NotificationCategory, typeof Bell> = {
   leads: Users,
   meetings: Calendar,
   tasks: CheckSquare,
-  automations: Zap,
+  automations: Workflow,
   system: Settings,
 };
 
@@ -63,10 +64,7 @@ export function NotificationsPage() {
           <TabsContent key={cat} value={cat}>
             <div className="space-y-2">
               {getFiltered(cat).length === 0 ? (
-                <div className="text-center py-12">
-                  <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground">{t("empty.notifications")}</p>
-                </div>
+                <EmptyState icon={Bell} title={t("empty.notifications")} />
               ) : getFiltered(cat).map((notif) => {
                 const Icon = CATEGORY_ICONS[notif.category];
                 return (

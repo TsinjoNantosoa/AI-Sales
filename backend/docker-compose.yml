@@ -55,7 +55,7 @@ services:
       N8N_PORT: ${N8N_PORT:-5678}
       N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
       # Public webhook URL (ngrok in dev, real domain in prod) — set at runtime, never hardcoded
-      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678/}
       N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL:-http://localhost:5678/}
       GENERIC_TIMEZONE: ${N8N_TIMEZONE:-Europe/Paris}
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-change-me-n8n-encryption-key-32-chars}
@@ -64,12 +64,25 @@ services:
       N8N_DIAGNOSTICS_ENABLED: "false"
       # Required by workflow pack: allow $env access in Code / HTTP Request nodes
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      # Give the internal JavaScript task runner enough time on Windows/Docker startup.
+      N8N_RUNNERS_GRANT_TOKEN_TTL: "120"
       # Backend reachable inside Docker network
       AI_SALES_BACKEND_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
       # Shared inbound webhook secret — workflows verify X-N8N-Webhook-Key
       N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:-dev-n8n-webhook-secret}
       # n8n → FastAPI service auth
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-api-key}
+      # FIDEST Outlook IA - safe local recipe profile (no Graph/LLM/email call)
+      SIMULATION_MODE: ${FIDEST_SIMULATION_MODE:-true}
+      AI_PROVIDER: ${FIDEST_AI_PROVIDER:-mock}
+      WF01_WORKFLOW_ID: ${FIDEST_WF01_WORKFLOW_ID:-UfJeYAjAqUc22xlC}
+      MAILBOX1_UPN: ${FIDEST_MAILBOX1_UPN:-mock-mailbox-1@example.invalid}
+      MAILBOX2_UPN: ${FIDEST_MAILBOX2_UPN:-mock-mailbox-2@example.invalid}
+      GRAPH_CLIENT_STATE: ${FIDEST_GRAPH_CLIENT_STATE:-LOCAL_MOCK_CLIENT_STATE_CHANGE_BEFORE_PRODUCTION}
+      ALERT_RECIPIENT: ${FIDEST_ALERT_RECIPIENT:-mock-alert-recipient@example.invalid}
+      ALERT_SENDER_ADDRESS: ${FIDEST_ALERT_SENDER_ADDRESS:-mock-alert-sender@example.invalid}
+      AI_CONFIDENCE_THRESHOLD: ${FIDEST_AI_CONFIDENCE_THRESHOLD:-0.7}
+      MAX_RETRY_COUNT: ${FIDEST_MAX_RETRY_COUNT:-3}
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:
@@ -82,6 +95,9 @@ services:
       retries: 10
       start_period: 30s
     restart: unless-stopped
+    networks:
+      - default
+      - assistant_network
 
   backend:
     build: .
@@ -141,3 +157,7 @@ volumes:
   pgdata:
   n8n_pgdata:
   n8n_data:
+
+networks:
+  assistant_network:
+    external: true

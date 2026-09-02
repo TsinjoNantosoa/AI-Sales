@@ -8,7 +8,7 @@ import { analyticsService } from "@/services/analyticsService";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
-import { Bot, Zap } from "lucide-react";
+import { Bot, Workflow } from "lucide-react";
 import type { AnalyticsData } from "@/types";
 
 const COLORS = ["#3b82f6","#22c55e","#f59e0b","#8b5cf6","#f43f5e","#0ea5e9","#64748b"];
@@ -207,7 +207,7 @@ export function AnalyticsPage() {
         </div>
 
         <div className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-semibold mb-4 flex items-center gap-2"><Zap className="h-4 w-4 text-primary" />Automation Performance</h3>
+          <h3 className="font-semibold mb-4 flex items-center gap-2"><Workflow className="h-4 w-4 text-primary" aria-hidden="true" />Automation Performance</h3>
           <div className="grid grid-cols-2 gap-3">
             {[
               { label: "Success Rate", value: `${autoSuccessRate}%`, color: "text-green-600 dark:text-green-400" },

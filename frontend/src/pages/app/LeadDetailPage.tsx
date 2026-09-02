@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Edit, Mail, Phone, Calendar, Flag,
-  Tag, Building2, Globe, Zap, Clock, Plus, Loader2
+  Tag, Building2, Globe, Gauge, Clock, Plus, Loader2, UserCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,8 +24,10 @@ import { formatCurrency, formatDate, formatDateTime, timeAgo, cn } from "@/lib/u
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import { Progress } from "@/components/ui/progress";
+import { ErrorState } from "@/components/common/ErrorState";
 
 export function LeadDetailPage() {
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const { user } = useAuthStore();
@@ -125,17 +127,16 @@ export function LeadDetailPage() {
   if (leadError || !lead) {
     const forbidden = leadError instanceof Error && leadError.message === "Forbidden";
     return (
-      <div className="p-6">
-        <p className="text-destructive font-medium mb-2">
-          {forbidden ? "Access denied" : "Lead not found"}
-        </p>
-        <p className="text-sm text-muted-foreground mb-4">
-          {forbidden
+      <ErrorState
+        kind={forbidden ? "permission" : "notFound"}
+        title={forbidden ? "Access denied" : "Lead not found"}
+        description={
+          forbidden
             ? "You can only view leads assigned to you."
-            : "This lead does not exist or was removed."}
-        </p>
-        <Link to="/app/leads" className="text-primary hover:underline text-sm">Back to leads</Link>
-      </div>
+            : "This lead does not exist or was removed."
+        }
+        action={{ label: "Back to leads", onClick: () => navigate("/app/leads") }}
+      />
     );
   }
 
@@ -173,10 +174,28 @@ export function LeadDetailPage() {
                 <TemperatureBadge temp={lead.temperature} />
                 <PriorityBadge priority={lead.priority} />
                 <div className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full">
-                  <Zap className="h-3 w-3 text-primary" />
+                  <Gauge className="h-3 w-3 text-primary" aria-hidden="true" />
                   <span className="text-xs font-semibold text-primary">Score: {lead.score}/100</span>
                 </div>
+                {lead.source && (
+                  <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full border border-border">
+                    {lead.source}
+                  </span>
+                )}
               </div>
+              {assignedUser && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Owner: {assignedUser.firstName} {assignedUser.lastName}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Next action:{" "}
+                <span className="font-medium text-foreground">
+                  {lead.temperature === "HOT" || lead.status === "QUALIFIED"
+                    ? "Book a meeting"
+                    : "Continue qualification"}
+                </span>
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -186,9 +205,11 @@ export function LeadDetailPage() {
             <Button variant="outline" size="sm" className="gap-2">
               <Mail className="h-4 w-4" /> Send Email
             </Button>
-            <Button variant="outline" size="sm" className="gap-2">
-              <Calendar className="h-4 w-4" /> Book Meeting
-            </Button>
+            <Link to="/app/appointments">
+              <Button variant="outline" size="sm" className="gap-2">
+                <Calendar className="h-4 w-4" aria-hidden="true" /> Book Meeting
+              </Button>
+            </Link>
             <Button
               size="sm"
               className="gap-2 bg-green-600 hover:bg-green-700"
@@ -224,7 +245,7 @@ export function LeadDetailPage() {
         </div>
         {lead.estimatedValue && (
           <div className="bg-card border border-border rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1"><Zap className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">Est. Value</span></div>
+            <div className="flex items-center gap-2 mb-1"><Gauge className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">Est. Value</span></div>
             <p className="text-xs font-bold text-green-600 dark:text-green-400">{formatCurrency(lead.estimatedValue)}</p>
           </div>
         )}
@@ -335,7 +356,7 @@ export function LeadDetailPage() {
               </div>
             </div>
             <div className="bg-card border border-border rounded-xl p-5">
-              <h3 className="font-semibold mb-3 flex items-center gap-2"><Zap className="h-4 w-4 text-primary" />AI Recommendation</h3>
+              <h3 className="font-semibold mb-3 flex items-center gap-2"><UserCheck className="h-4 w-4 text-primary" aria-hidden="true" />AI Recommendation</h3>
               <div className={cn("p-4 rounded-lg border", lead.score >= 70 ? "bg-green-50 border-green-200 dark:bg-green-900/10 dark:border-green-800" : "bg-blue-50 border-blue-200 dark:bg-blue-900/10 dark:border-blue-800")}>
                 <p className="text-sm font-medium mb-1">Recommended Next Action</p>
                 <p className="text-sm text-muted-foreground">

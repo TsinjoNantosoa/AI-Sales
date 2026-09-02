@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Bot, Send, User, ArrowRightLeft, X, MessageSquare, Loader2,
-  Search, ArrowLeft, MoreVertical,
+  Search, ArrowLeft, MoreVertical, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -167,7 +167,10 @@ export function ConversationsPage() {
                   <p className="text-xs text-muted-foreground truncate">{c.leadCompany}</p>
                   <p className="text-xs text-muted-foreground truncate mt-0.5 opacity-70">{c.lastMessage}</p>
                   {c.humanHandoffRequested && (
-                    <span className="text-[10px] text-red-500 font-semibold mt-0.5 block">⚡ Handoff requested</span>
+                    <span className="text-[10px] text-red-600 dark:text-red-400 font-semibold mt-0.5 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                      Handoff requested
+                    </span>
                   )}
                 </div>
                 {c.unreadCount > 0 && (

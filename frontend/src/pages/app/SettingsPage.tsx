@@ -22,7 +22,7 @@ const EMAIL_TEMPLATES = [
   { id: "meeting_confirmation", name: "Meeting Confirmation", subject: "Your meeting is confirmed — {{meeting_date}}" },
   { id: "meeting_reminder", name: "Meeting Reminder", subject: "Reminder: Your call tomorrow at {{meeting_time}}" },
   { id: "no_response", name: "No Response Follow-up", subject: "Still interested in {{service_interest}}?" },
-  { id: "hot_lead_alert", name: "Hot Lead Alert", subject: "🔥 New hot lead assigned to you" },
+  { id: "hot_lead_alert", name: "Hot Lead Alert", subject: "New hot lead assigned to you" },
 ];
 
 const TEMPLATE_BODY: Record<string, string> = {

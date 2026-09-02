@@ -1,9 +1,10 @@
 import { Link, useLocation } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
 import {
-  LayoutDashboard, Users, GitBranch, MessageSquare, Calendar,
-  CheckSquare, Zap, BarChart3, Bell, Shield, Puzzle, Settings,
-  ChevronLeft, ChevronRight, Bot, LogOut, Globe, Sun, Moon,
-  UserCircle, Building2,
+  LayoutDashboard, Users, GitBranch, MessageSquare, CalendarDays,
+  ListChecks, Workflow, BarChart3, Bell, ScrollText, Plug, Settings,
+  ChevronLeft, ChevronRight, LogOut, Globe, Sun, Moon,
+  UserCircle, UsersRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -14,13 +15,14 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UserAvatar } from "@/components/common/Avatar";
+import { BrandLogo } from "@/components/common/BrandLogo";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { UserRole } from "@/types";
 
 interface NavItem {
   to: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   labelKey: string;
   badge?: boolean;
   /** Roles allowed to see this item. Omit = all authenticated roles. */
@@ -40,11 +42,11 @@ const NAV: NavGroup[] = [
       { to: "/app/leads", icon: Users, labelKey: "nav.leads" },
       { to: "/app/pipeline", icon: GitBranch, labelKey: "nav.pipeline" },
       { to: "/app/conversations", icon: MessageSquare, labelKey: "nav.conversations" },
-      { to: "/app/appointments", icon: Calendar, labelKey: "nav.appointments" },
-      { to: "/app/tasks", icon: CheckSquare, labelKey: "nav.tasks" },
+      { to: "/app/appointments", icon: CalendarDays, labelKey: "nav.appointments" },
+      { to: "/app/tasks", icon: ListChecks, labelKey: "nav.tasks" },
       {
         to: "/app/automations",
-        icon: Zap,
+        icon: Workflow,
         labelKey: "nav.automations",
         roles: ["ADMIN", "SALES_MANAGER"],
       },
@@ -61,14 +63,14 @@ const NAV: NavGroup[] = [
     items: [
       {
         to: "/app/team",
-        icon: Building2,
+        icon: UsersRound,
         labelKey: "nav.team",
         roles: ["ADMIN", "SALES_MANAGER"],
       },
       { to: "/app/notifications", icon: Bell, labelKey: "nav.notifications", badge: true },
       {
         to: "/app/audit-logs",
-        icon: Shield,
+        icon: ScrollText,
         labelKey: "nav.auditLogs",
         roles: ["ADMIN"],
       },
@@ -79,7 +81,7 @@ const NAV: NavGroup[] = [
     items: [
       {
         to: "/app/integrations",
-        icon: Puzzle,
+        icon: Plug,
         labelKey: "nav.integrations",
         roles: ["ADMIN", "SALES_MANAGER"],
       },
@@ -128,23 +130,27 @@ export function Sidebar({ mobile = false, onClose }: SidebarProps) {
       )}
     >
       {/* ── Logo ── */}
-      <div className={cn(
-        "flex items-center gap-3 h-16 px-4 border-b shrink-0",
-        "border-[hsl(var(--sidebar-border))]",
-        collapsed && "justify-center px-2"
-      )}>
-        <div className="h-8 w-8 rounded-lg bg-blue-500 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/30">
-          <Bot className="h-4 w-4 text-white" />
-        </div>
-        {!collapsed && (
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-white truncate leading-none">AI Sales</p>
-            <p className="text-[11px] text-[hsl(215_20%_50%)] truncate mt-0.5">Assistant</p>
-          </div>
+      <div
+        className={cn(
+          "flex border-b shrink-0",
+          "border-[hsl(var(--sidebar-border))]",
+          collapsed
+            ? "flex-col items-center justify-center gap-1 px-1 py-2.5"
+            : "items-center gap-1 h-16 px-2.5",
         )}
+      >
+        <div className={cn("min-w-0", collapsed ? "" : "flex-1")}>
+          <BrandLogo
+            variant={collapsed ? "mark" : "full"}
+            size="md"
+            className={cn(!collapsed && "w-[188px] max-w-[188px]")}
+          />
+        </div>
         {!mobile && (
           <button
+            type="button"
             onClick={toggleSidebar}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={cn(
               "h-6 w-6 rounded-md flex items-center justify-center shrink-0",
               "text-[hsl(215_20%_40%)] hover:text-white hover:bg-[hsl(var(--sidebar-hover-bg))]",
@@ -152,8 +158,8 @@ export function Sidebar({ mobile = false, onClose }: SidebarProps) {
             )}
           >
             {collapsed
-              ? <ChevronRight className="h-3.5 w-3.5" />
-              : <ChevronLeft className="h-3.5 w-3.5" />
+              ? <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+              : <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
             }
           </button>
         )}
@@ -184,14 +190,17 @@ export function Sidebar({ mobile = false, onClose }: SidebarProps) {
                         to={item.to}
                         onClick={handleClick}
                         title={collapsed ? label : undefined}
+                        aria-current={isActive ? "page" : undefined}
                         className={cn(
                           "sidebar-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium",
-                          "transition-all duration-150 relative group",
+                          "transition-colors duration-150 relative group",
                           collapsed && "justify-center px-2",
                           isActive ? "sidebar-item active" : ""
                         )}
                       >
-                        <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-white" : "")} />
+                        <span aria-hidden="true" className="inline-flex">
+                          <item.icon className="h-[18px] w-[18px] shrink-0" />
+                        </span>
 
                         {!collapsed && (
                           <span className={cn("truncate flex-1", isActive ? "text-white" : "")}>
@@ -245,7 +254,9 @@ export function Sidebar({ mobile = false, onClose }: SidebarProps) {
               {(["en", "fr"] as const).map((lang) => (
                 <button
                   key={lang}
+                  type="button"
                   onClick={() => setLanguage(lang)}
+                  aria-pressed={language === lang}
                   className={cn(
                     "text-[11px] font-semibold px-1.5 py-0.5 rounded transition-colors uppercase",
                     language === lang
@@ -262,12 +273,14 @@ export function Sidebar({ mobile = false, onClose }: SidebarProps) {
 
         {/* Theme */}
         <button
+          type="button"
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
           className={cn(
             "sidebar-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm",
             "transition-colors",
             collapsed && "justify-center px-2"
           )}
+          aria-label={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           title={collapsed ? (resolvedTheme === "dark" ? "Light Mode" : "Dark Mode") : undefined}
         >
           {resolvedTheme === "dark"

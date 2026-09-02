@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Zap, Play, Power, List, CheckCircle, XCircle, Loader2, RefreshCw, Clock } from "lucide-react";
+import { Workflow, Play, Power, List, CheckCircle, XCircle, Loader2, RefreshCw, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageLoader } from "@/components/common/LoadingSpinner";
@@ -95,7 +95,7 @@ export function AutomationsPage() {
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className={cn("h-10 w-10 rounded-lg flex items-center justify-center", w.status === "active" ? "bg-green-100 dark:bg-green-900/20" : "bg-muted")}>
-                  <Zap className={cn("h-5 w-5", w.status === "active" ? "text-green-600 dark:text-green-400" : "text-muted-foreground")} />
+                  <Workflow className={cn("h-5 w-5", w.status === "active" ? "text-green-600 dark:text-green-400" : "text-muted-foreground")} aria-hidden="true" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm">{w.name}</h3>

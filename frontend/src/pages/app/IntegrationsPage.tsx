@@ -14,23 +14,10 @@ import type { Integration } from "@/types";
 import { toast } from "sonner";
 import { Settings, Link2, Unlink, RefreshCw, PlugZap } from "lucide-react";
 import { useTranslation } from "@/hooks/useTranslation";
+import { INTEGRATION_ICONS } from "@/lib/icons";
+import { AppIcon } from "@/components/ui/AppIcon";
 
 const MASK = "••••••••••••••";
-
-const LOGO_ICON: Record<string, string> = {
-  n8n: "⚡",
-  calendar: "📅",
-  mail: "📧",
-  hubspot: "🔶",
-  slack: "💬",
-  openai: "🤖",
-  odoo: "🟣",
-  airtable: "📊",
-  teams: "🟦",
-  whatsapp: "💚",
-  twilio: "📱",
-  outlook: "📆",
-};
 
 type ConfigKind = "n8n" | "google-calendar" | "gmail" | "generic";
 
@@ -161,8 +148,8 @@ export function IntegrationsPage() {
     <div className={cn("bg-card border border-border rounded-xl p-5 flex flex-col gap-3", int.status === "coming_soon" && "opacity-60")}>
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-xl">
-            {LOGO_ICON[int.logo] ?? "🔌"}
+          <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-foreground">
+            <AppIcon icon={INTEGRATION_ICONS[int.logo] ?? INTEGRATION_ICONS.n8n} size="lg" />
           </div>
           <div>
             <p className="font-semibold text-sm">{int.name}</p>

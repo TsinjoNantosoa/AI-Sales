@@ -1,6 +1,8 @@
 import { cn, getStatusColor, getTemperatureColor, getPriorityColor } from "@/lib/utils";
 import type { LeadStatus, LeadTemperature } from "@/types";
 import { useTranslation } from "@/hooks/useTranslation";
+import { AppIcon } from "@/components/ui/AppIcon";
+import type { AppIconName } from "@/lib/icons";
 
 interface BadgeProps {
   children: React.ReactNode;
@@ -24,12 +26,17 @@ export function StatusBadge({ status }: { status: LeadStatus }) {
   );
 }
 
+const TEMP_ICON: Record<LeadTemperature, AppIconName> = {
+  HOT: "hot",
+  WARM: "warm",
+  COLD: "cold",
+};
+
 export function TemperatureBadge({ temp }: { temp: LeadTemperature }) {
   const { t } = useTranslation();
-  const icons = { HOT: "🔥", WARM: "☀️", COLD: "❄️" };
   return (
     <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border", getTemperatureColor(temp))}>
-      <span>{icons[temp]}</span>
+      <AppIcon name={TEMP_ICON[temp]} size="xs" />
       {t(`leads.temperature.${temp}`)}
     </span>
   );

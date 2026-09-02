@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Bot, Send, User, Loader2, Zap, ArrowLeft, Calendar } from "lucide-react";
+import { Bot, Send, User, Loader2, Gauge, ArrowLeft, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -278,7 +278,7 @@ export function ChatPage() {
       <div className="px-4 py-2 bg-card border-b">
         <div className="flex items-center justify-between mb-1 max-w-2xl mx-auto">
           <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <Zap className="h-3 w-3 text-primary" /> Lead score
+            <Gauge className="h-3 w-3 text-primary" aria-hidden="true" /> Lead score
           </span>
           <span className="text-xs font-semibold text-primary">{score}/100</span>
         </div>

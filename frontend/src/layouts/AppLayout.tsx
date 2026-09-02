@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet, Navigate, useLocation } from "react-router-dom";
+import { Outlet, Navigate, useLocation, Link } from "react-router-dom";
 import { Menu, Bell } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { Sidebar } from "./Sidebar";
@@ -9,8 +9,8 @@ import { Toaster } from "sonner";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { TranslationPath } from "@/hooks/useTranslation";
-import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/common/BrandLogo";
 
 const ROUTE_LABEL_KEYS: Record<string, TranslationPath> = {
   "/app/dashboard": "pages.dashboard.title",
@@ -77,9 +77,7 @@ export function AppLayout() {
           </Button>
 
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="h-6 w-6 rounded-md bg-blue-500 flex items-center justify-center shrink-0">
-              <span className="text-white text-[10px] font-bold">AI</span>
-            </div>
+            <BrandLogo variant="mark" size="sm" onLight />
             <h1 className="text-sm font-semibold text-foreground truncate">{pageLabel}</h1>
           </div>
 

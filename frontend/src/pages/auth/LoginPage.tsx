@@ -78,6 +78,7 @@ export function LoginPage() {
           <Input
             id="email"
             type="email"
+            autoComplete="email"
             placeholder="you@example.com"
             {...register("email")}
             className={errors.email ? "border-destructive" : ""}
@@ -96,6 +97,7 @@ export function LoginPage() {
             <Input
               id="password"
               type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
               placeholder="••••••••"
               {...register("password")}
               className={cn("pr-10", errors.password ? "border-destructive" : "")}
@@ -106,6 +108,7 @@ export function LoginPage() {
               size="icon"
               className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
@@ -130,6 +133,7 @@ export function LoginPage() {
           type="button"
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full justify-between py-2 border-t border-border"
           onClick={() => setShowDemos(!showDemos)}
+          aria-expanded={showDemos}
         >
           <span className="font-medium">{t("auth.demoAccounts")}</span>
           {showDemos ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}

@@ -212,7 +212,22 @@
 
 /* ─── Cards ──────────────────────────────────────────────────── */
 .card-hover {
-  @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
+  @apply transition-colors duration-200 hover:border-primary/25;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .typing-dot:nth-child(1),
+  .typing-dot:nth-child(2),
+  .typing-dot:nth-child(3) {
+    animation: none;
+  }
 }
 
 /* ─── Page wrapper ───────────────────────────────────────────── */
